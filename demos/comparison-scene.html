@@ -109,10 +109,34 @@
         text-transform: uppercase;
         font-family: -apple-system, monospace;
       }
+      .perf-hud {
+        position: fixed;
+        top: 12px;
+        right: 12px;
+        z-index: 9999;
+        background: rgba(0, 0, 0, 0.78);
+        color: #fff;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        line-height: 1.5;
+        min-width: 160px;
+      }
+      .perf-hud .row { display: flex; justify-content: space-between; gap: 12px; }
+      .perf-hud .label { color: rgba(255,255,255,0.55); }
+      .perf-hud .value { color: #fff; }
     </style>
   </head>
   <body>
     <div class="ver-tag" id="verTag">loading…</div>
+    <div class="perf-hud" id="perfHud">
+      <div class="row"><span class="label">last</span><span class="value" id="perfLast">—</span></div>
+      <div class="row"><span class="label">avg</span><span class="value" id="perfAvg">—</span></div>
+      <div class="row"><span class="label">min/max</span><span class="value" id="perfMinMax">—</span></div>
+      <div class="row"><span class="label">samples</span><span class="value" id="perfN">0</span></div>
+    </div>
 
     <section class="band band-1"><span class="band-label">1</span></section>
     <div class="gap"><div class="target">TARGET A</div><div class="liquidGL"></div></div>
@@ -129,19 +153,30 @@
 
     <script>
       const params = new URLSearchParams(window.location.search);
-      const ver = params.get("ver") === "upstream" ? "upstream" : "local";
+      const rawVer = params.get("ver");
+      const ver =
+        rawVer === "upstream" || rawVer === "snapdom" ? rawVer : "local";
 
       const tag = document.getElementById("verTag");
-      tag.textContent = ver === "upstream" ? "Upstream (buggy)" : "Patched fork";
-      tag.style.background = ver === "upstream"
-        ? "rgba(180, 30, 30, 0.85)"
-        : "rgba(30, 130, 60, 0.85)";
+      const labels = {
+        upstream: { text: "Upstream (buggy)", bg: "rgba(180, 30, 30, 0.85)" },
+        local: { text: "Patched fork", bg: "rgba(30, 130, 60, 0.85)" },
+        snapdom: { text: "Snapdom port", bg: "rgba(30, 80, 180, 0.85)" },
+      };
+      tag.textContent = labels[ver].text;
+      tag.style.background = labels[ver].bg;
 
-      const html2canvasSrc = "/scripts/html2canvas.min.js";
+      const captureLib =
+        ver === "snapdom"
+          ? "https://cdn.jsdelivr.net/npm/@zumer/snapdom@2.9.0/dist/snapdom.js"
+          : "/scripts/html2canvas.min.js";
+
       const liquidGLSrc =
         ver === "upstream"
           ? "https://cdn.jsdelivr.net/gh/naughtyduk/liquidGL@latest/scripts/liquidGL.js"
-          : "/scripts/liquidGL.js";
+          : ver === "snapdom"
+          ? "/scripts/liquidGL.js"
+          : "/scripts/liquidGL-legacy.js";
 
       function loadScript(src) {
         return new Promise((resolve, reject) => {
@@ -153,8 +188,54 @@
         });
       }
 
+      const perf = {
+        samples: [],
+        record(ms) {
+          this.samples.push(ms);
+          // Skip first sample from avg (warm-up: image decode, font load, etc.)
+          const warm = this.samples.slice(1);
+          const last = ms;
+          const avg = warm.length
+            ? warm.reduce((a, b) => a + b, 0) / warm.length
+            : ms;
+          const min = warm.length ? Math.min(...warm) : ms;
+          const max = warm.length ? Math.max(...warm) : ms;
+          document.getElementById("perfLast").textContent =
+            last.toFixed(1) + " ms";
+          document.getElementById("perfAvg").textContent =
+            avg.toFixed(1) + " ms" + (warm.length ? "" : " *");
+          document.getElementById("perfMinMax").textContent =
+            min.toFixed(1) + " / " + max.toFixed(1);
+          document.getElementById("perfN").textContent =
+            this.samples.length + (warm.length ? "" : " (warming)");
+        },
+      };
+
+      function instrumentCaptureLib() {
+        if (ver === "snapdom" && typeof snapdom !== "undefined") {
+          const orig = snapdom.toCanvas.bind(snapdom);
+          snapdom.toCanvas = async function (...args) {
+            const t0 = performance.now();
+            const r = await orig(...args);
+            perf.record(performance.now() - t0);
+            return r;
+          };
+        } else if (typeof window.html2canvas === "function") {
+          const orig = window.html2canvas;
+          window.html2canvas = function (...args) {
+            const t0 = performance.now();
+            const p = orig(...args);
+            return Promise.resolve(p).then((r) => {
+              perf.record(performance.now() - t0);
+              return r;
+            });
+          };
+        }
+      }
+
       (async () => {
-        await loadScript(html2canvasSrc);
+        await loadScript(captureLib);
+        instrumentCaptureLib();
         await loadScript(liquidGLSrc);
 
         liquidGL({

@@ -4,35 +4,6 @@
  *
  * Author: NaughtyDuk© – https://liquidgl.naughtyduk.com
  * Licence: MIT
- *
- * --- snapdom port (with html2canvas hybrid fallback) ---
- * Primary capture path is snapdom (https://github.com/zumerlab/snapdom),
- * which renders ~4× faster than html2canvas via SVG foreignObject. snapdom
- * has one structural limitation: `position: absolute` descendants of the
- * capture target whose containing block is the page viewport (no positioned
- * ancestor) drop out of the foreignObject rasterisation. To stay correct
- * for that case, the shim detects absolute descendants and lazy-loads
- * html2canvas to capture *only those elements*, then composites them onto
- * the snapdom base canvas. Pages with no absolute descendants never trigger
- * the html2canvas fetch, so the common case stays at ~50KB and snapdom-fast.
- *
- * Lazy-load source order:
- *   1. `window.html2canvas` if user pre-loaded it.
- *   2. `window.LIQUIDGL_HTML2CANVAS_URL` if set on the page.
- *   3. cdnjs default (html2canvas 1.4.1 minified).
- *
- * Notes:
- *   - Live-DOM `visibility: hidden` is used for ignored elements during
- *     capture (snapdom has no `onclone` hook). Brief flicker possible on
- *     fixed UI like nav bars while a capture is in flight.
- *   - snapdom only rasterises content currently painted in the viewport.
- *     Off-screen dynamic elements (e.g. GSAP-animated lines) are captured
- *     via an IntersectionObserver-driven recapture path so they populate
- *     as they enter view; first paint in the lens may lag by one capture
- *     frame on fast scroll.
- *   - If html2canvas fails to lazy-load (offline, blocked CDN, etc.) the
- *     shim logs a warning and returns the partial snapdom result rather
- *     than throwing.
  */
 
 (() => {
@@ -96,298 +67,10 @@
   }
 
   /* --------------------------------------------------
-   *  html2canvas lazy-loader (only fetched when the snapdom path
-   *  hits a layout pattern it can't render: position:absolute
-   *  descendants of the snapshot target with viewport-relative
-   *  containing blocks).
-   * ------------------------------------------------*/
-  const HTML2CANVAS_CDN =
-    "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
-  let _h2cLoadPromise = null;
-
-  function ensureHtml2canvas() {
-    if (typeof window.html2canvas === "function") {
-      return Promise.resolve(window.html2canvas);
-    }
-    if (_h2cLoadPromise) return _h2cLoadPromise;
-    _h2cLoadPromise = new Promise((resolve, reject) => {
-      const url = window.LIQUIDGL_HTML2CANVAS_URL || HTML2CANVAS_CDN;
-      const s = document.createElement("script");
-      s.src = url;
-      s.crossOrigin = "anonymous";
-      s.onload = () => {
-        if (typeof window.html2canvas === "function") {
-          resolve(window.html2canvas);
-        } else {
-          _h2cLoadPromise = null;
-          reject(new Error("liquidGL: html2canvas script loaded but global is missing"));
-        }
-      };
-      s.onerror = () => {
-        _h2cLoadPromise = null;
-        reject(new Error("liquidGL: failed to lazy-load html2canvas from " + url));
-      };
-      document.head.appendChild(s);
-    });
-    return _h2cLoadPromise;
-  }
-
-  /* --------------------------------------------------
-   *  snapdom adapter (with html2canvas hybrid fallback)
-   *  -----------------------------------------------------------
-   *  Pure snapdom path when the capture target has no absolute
-   *  descendants. Otherwise, capture the base with snapdom (with
-   *  the absolute descendants temporarily hidden) and overlay each
-   *  absolute descendant via html2canvas at its computed rect.
-   *
-   *  Note on excludeMode: snapdom's default 'hide' mode replaces
-   *  excluded nodes with a `display:inline-block` spacer, which
-   *  silently changes the layout context for block-level elements
-   *  (line box, baseline alignment) and reintroduces drift on long
-   *  pages. To preserve exact layout we set `visibility: hidden`
-   *  directly on the live element instead — the original element's
-   *  display/margin rules stay intact, content just isn't painted.
-   * ------------------------------------------------*/
-  function findAbsoluteDescendants(target, ignore) {
-    const result = [];
-    const all = target.querySelectorAll("*");
-    for (let i = 0; i < all.length; i++) {
-      const el = all[i];
-      try {
-        if (typeof ignore === "function" && ignore(el)) continue;
-      } catch (_) {
-        /* defensive */
-      }
-      const cs = window.getComputedStyle(el);
-      if (cs.position === "absolute") result.push(el);
-    }
-    return result;
-  }
-
-  async function snapdomCapture(target, scale) {
-    return snapdom.toCanvas(target, {
-      scale: scale,
-      dpr: 1,
-      /* Normalize the cloned root's translate/rotate to (0,0). Without
-         this, an element with a live transform (e.g. GSAP yPercent: 180)
-         renders shifted inside the SVG so its pixels land outside the
-         foreignObject's bounds — the captured canvas comes back empty. */
-      outerTransforms: false,
-      backgroundColor: "transparent",
-      crossOrigin: "anonymous",
-      embedFonts: true,
-    });
-  }
-
-  /* --------------------------------------------------
-   *  html2canvas-only capture path (engine: "html2canvas").
-   *  Same drift fix as the legacy build: tag elements with
-   *  data-liquidgl-hide on live DOM, then have html2canvas's
-   *  onclone hook apply visibility:hidden to those tags inside
-   *  the cloned tree. Layout is preserved, no live-DOM flicker.
-   * ------------------------------------------------*/
-  async function captureViaHtml2canvas(target, { scale, ignore } = {}) {
-    const html2canvas = await ensureHtml2canvas();
-    const restores = [];
-
-    if (typeof ignore === "function") {
-      const all = target.querySelectorAll("*");
-      for (let i = 0; i < all.length; i++) {
-        const el = all[i];
-        try {
-          if (ignore(el)) {
-            el.setAttribute("data-liquidgl-hide", "");
-            restores.push(() => {
-              el.removeAttribute("data-liquidgl-hide");
-            });
-          }
-        } catch (_) {
-          /* defensive */
-        }
-      }
-    }
-
-    try {
-      const fullW = target.scrollWidth;
-      const fullH = target.scrollHeight;
-      return await html2canvas(target, {
-        allowTaint: false,
-        useCORS: true,
-        backgroundColor: null,
-        removeContainer: true,
-        width: fullW,
-        height: fullH,
-        scrollX: 0,
-        scrollY: 0,
-        scale: scale,
-        logging: false,
-        ignoreElements: (element) => {
-          /* Only the canvas itself uses the hard ignore (display:none in
-             clone) since it's position:fixed and contributes no flow.
-             Everything else is hidden via the visibility:hidden onclone
-             path below so layout is preserved (the drift fix). */
-          return (
-            element &&
-            element.tagName === "CANVAS" &&
-            element.hasAttribute &&
-            element.hasAttribute("data-liquid-ignore")
-          );
-        },
-        onclone: (clonedDoc) => {
-          clonedDoc
-            .querySelectorAll("[data-liquidgl-hide]")
-            .forEach((el) => {
-              el.style.visibility = "hidden";
-            });
-        },
-      });
-    } finally {
-      for (let i = restores.length - 1; i >= 0; i--) {
-        restores[i]();
-      }
-    }
-  }
-
-  async function snapToCanvas(target, { scale, ignore, engine } = {}) {
-    if ((engine || "snapdom") === "html2canvas") {
-      return await captureViaHtml2canvas(target, { scale, ignore });
-    }
-
-    if (typeof snapdom === "undefined") {
-      throw new Error("liquidGL: snapdom is not loaded");
-    }
-
-    const restores = [];
-
-    /* Apply ignore predicate via visibility:hidden on live DOM. */
-    if (typeof ignore === "function") {
-      const all = target.querySelectorAll("*");
-      for (let i = 0; i < all.length; i++) {
-        const el = all[i];
-        try {
-          if (ignore(el)) {
-            const prev = el.style.visibility;
-            el.style.visibility = "hidden";
-            restores.push(() => {
-              el.style.visibility = prev;
-            });
-          }
-        } catch (_) {
-          /* defensive: ignore predicates that throw on detached nodes */
-        }
-      }
-    }
-
-    try {
-      const absoluteEls = findAbsoluteDescendants(target, ignore);
-      if (absoluteEls.length === 0) {
-        return await snapdomCapture(target, scale);
-      }
-
-      /* Hybrid path: snapdom for the base (with absolute descendants
-         temporarily hidden), html2canvas for each absolute element,
-         then composite. */
-      let html2canvas;
-      try {
-        html2canvas = await ensureHtml2canvas();
-      } catch (e) {
-        console.warn(
-          "liquidGL: html2canvas fallback unavailable; capturing without absolute overlays",
-          e
-        );
-        return await snapdomCapture(target, scale);
-      }
-
-      const hideRestores = absoluteEls.map((el) => {
-        const prev = el.style.visibility;
-        el.style.visibility = "hidden";
-        return () => {
-          el.style.visibility = prev;
-        };
-      });
-
-      let baseCanvas;
-      try {
-        baseCanvas = await snapdomCapture(target, scale);
-      } finally {
-        for (let i = hideRestores.length - 1; i >= 0; i--) {
-          hideRestores[i]();
-        }
-      }
-
-      const targetRect = target.getBoundingClientRect();
-      const ctx = baseCanvas.getContext("2d");
-
-      for (let i = 0; i < absoluteEls.length; i++) {
-        const el = absoluteEls[i];
-        try {
-          const elRect = el.getBoundingClientRect();
-          if (elRect.width <= 0 || elRect.height <= 0) continue;
-
-          /* Absolute elements often have content that overflows their box
-             (e.g. `padding-top: 150svh` pushing text past `height: 100%`).
-             Walk descendants to compute the actual visual bounds so the
-             html2canvas capture and composite include the full content. */
-          let vbTop = elRect.top;
-          let vbLeft = elRect.left;
-          let vbBottom = elRect.bottom;
-          let vbRight = elRect.right;
-          const descendants = el.querySelectorAll("*");
-          for (let j = 0; j < descendants.length; j++) {
-            const r = descendants[j].getBoundingClientRect();
-            if (r.width <= 0 || r.height <= 0) continue;
-            if (r.top < vbTop) vbTop = r.top;
-            if (r.left < vbLeft) vbLeft = r.left;
-            if (r.bottom > vbBottom) vbBottom = r.bottom;
-            if (r.right > vbRight) vbRight = r.right;
-          }
-          const vbWidth = vbRight - vbLeft;
-          const vbHeight = vbBottom - vbTop;
-
-          const overlay = await html2canvas(el, {
-            scale: scale,
-            useCORS: true,
-            allowTaint: false,
-            backgroundColor: null,
-            logging: false,
-            width: vbWidth,
-            height: vbHeight,
-            x: vbLeft - elRect.left,
-            y: vbTop - elRect.top,
-          });
-          if (!overlay || overlay.width === 0 || overlay.height === 0) {
-            continue;
-          }
-          ctx.drawImage(
-            overlay,
-            (vbLeft - targetRect.left) * scale,
-            (vbTop - targetRect.top) * scale,
-            vbWidth * scale,
-            vbHeight * scale
-          );
-        } catch (e) {
-          console.warn(
-            "liquidGL: failed to composite absolute element via html2canvas",
-            el,
-            e
-          );
-        }
-      }
-
-      return baseCanvas;
-    } finally {
-      for (let i = restores.length - 1; i >= 0; i--) {
-        restores[i]();
-      }
-    }
-  }
-
-  /* --------------------------------------------------
    *  Shared renderer (one per page)
    * ------------------------------------------------*/
   class liquidGLRenderer {
-    constructor(snapshotSelector, snapshotResolution = 1.0, engine = "snapdom") {
-      this._engine = engine === "html2canvas" ? "html2canvas" : "snapdom";
+    constructor(snapshotSelector, snapshotResolution = 1.0) {
       this.canvas = document.createElement("canvas");
       this.canvas.style.cssText = `position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;`;
       this.canvas.setAttribute("data-liquid-ignore", "");
@@ -727,7 +410,7 @@
 
     /* ----------------------------- */
     async captureSnapshot() {
-      if (typeof snapdom === "undefined") return;
+      if (typeof html2canvas === "undefined") return;
       /* If a capture is already in flight, queue a follow-up. The in-flight
          capture closed over a stale view of `_dynamicNodes` / `lenses`, so
          registerDynamic / addLens calls made after it started would otherwise
@@ -771,25 +454,17 @@
             .flatMap((lens) => [lens.el, lens._shadowEl])
             .filter(Boolean);
 
-          /* Registered dynamic elements (e.g. GSAP split lines) are drawn
-             exclusively by the per-frame dynamic path. Including them in the
-             static snapshot causes a ghost duplicate when a renderer
-             (snapdom in particular) doesn't honour the host's overflow/mask
-             clipping the same way html2canvas does. */
-          const dynamicElements = (this._dynamicNodes || [])
-            .map((n) => n && n.el)
-            .filter(Boolean);
+          lensElements.forEach((el) => {
+            el.setAttribute("data-liquidgl-hide", "");
+            undos.push(() => {
+              el.removeAttribute("data-liquidgl-hide");
+            });
+          });
 
           const ignoreElementsFunc = (element) => {
             if (!element || !element.hasAttribute) return false;
-            if (element === this.canvas || lensElements.includes(element)) {
+            if (element === this.canvas) {
               return true;
-            }
-            for (let i = 0; i < dynamicElements.length; i++) {
-              const dyn = dynamicElements[i];
-              if (element === dyn || (dyn.contains && dyn.contains(element))) {
-                return true;
-              }
             }
             const style = window.getComputedStyle(element);
             if (style.position === "fixed") {
@@ -801,10 +476,24 @@
             );
           };
 
-          const snapCanvas = await snapToCanvas(this.snapshotTarget, {
+          const snapCanvas = await html2canvas(this.snapshotTarget, {
+            allowTaint: false,
+            useCORS: true,
+            backgroundColor: null,
+            removeContainer: true,
+            width: fullW,
+            height: fullH,
+            scrollX: 0,
+            scrollY: 0,
             scale: scale,
-            ignore: ignoreElementsFunc,
-            engine: this._engine,
+            ignoreElements: ignoreElementsFunc,
+            onclone: (clonedDoc) => {
+              clonedDoc
+                .querySelectorAll("[data-liquidgl-hide]")
+                .forEach((el) => {
+                  el.style.visibility = "hidden";
+                });
+            },
           });
 
           this._uploadTexture(snapCanvas);
@@ -1241,23 +930,17 @@
         const meta = this._dynMeta.get(el);
         if (!meta) return;
 
-        /* Allow first-time capture during scroll: snapdom can't capture
-           off-viewport elements, so we need to grab them as soon as they
-           enter the viewport — even while still scrolling. Subsequent
-           recaptures still wait for scroll-stop to avoid jank. */
-        const allowDuringScroll = !meta.lastCapture;
-        if (
-          meta.needsRecapture &&
-          !meta._capturing &&
-          (allowDuringScroll || !this._isScrolling)
-        ) {
+        if (meta.needsRecapture && !meta._capturing && !this._isScrolling) {
           meta._capturing = true;
 
-          snapToCanvas(el, {
+          html2canvas(el, {
+            backgroundColor: null,
             scale: this.scaleFactor,
-            ignore: (n) =>
+            useCORS: true,
+            removeContainer: true,
+            logging: false,
+            ignoreElements: (n) =>
               n.tagName === "CANVAS" || n.hasAttribute("data-liquid-ignore"),
-            engine: this._engine,
           })
             .then((cv) => {
               if (cv.width > 0 && cv.height > 0) {
@@ -1397,56 +1080,15 @@
           this._compositeCtx.restore();
 
           gl.bindTexture(gl.TEXTURE_2D, this.texture);
-
-          /* If the in-bounds region is smaller than the composite canvas
-             (snapdom's output dims can differ from fullW*scale by sub-pixels,
-             so the dynamic rect can extend past the texture edge), upload only
-             the clipped rectangle instead of the whole canvas. Otherwise WebGL
-             rejects the upload with INVALID_VALUE on Chrome. */
-          if (updW !== drawW || updH !== drawH) {
-            if (!this._uploadCanvas) {
-              this._uploadCanvas = document.createElement("canvas");
-              this._uploadCtx = this._uploadCanvas.getContext("2d");
-            }
-            if (
-              this._uploadCanvas.width !== updW ||
-              this._uploadCanvas.height !== updH
-            ) {
-              this._uploadCanvas.width = updW;
-              this._uploadCanvas.height = updH;
-            }
-            this._uploadCtx.clearRect(0, 0, updW, updH);
-            this._uploadCtx.drawImage(
-              compositeCanvas,
-              srcX,
-              srcY,
-              updW,
-              updH,
-              0,
-              0,
-              updW,
-              updH
-            );
-            gl.texSubImage2D(
-              gl.TEXTURE_2D,
-              0,
-              dstX,
-              dstY,
-              gl.RGBA,
-              gl.UNSIGNED_BYTE,
-              this._uploadCanvas
-            );
-          } else {
-            gl.texSubImage2D(
-              gl.TEXTURE_2D,
-              0,
-              dstX,
-              dstY,
-              gl.RGBA,
-              gl.UNSIGNED_BYTE,
-              compositeCanvas
-            );
-          }
+          gl.texSubImage2D(
+            gl.TEXTURE_2D,
+            0,
+            dstX,
+            dstY,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            compositeCanvas
+          );
 
           if (this._workerEnabled && meta._heavyAnim) {
             const jobId = `${Date.now()}_${Math.random()}`;
@@ -1543,29 +1185,6 @@
         _heavyAnim: false,
       };
       this._dynMeta.set(el, meta);
-
-      /* snapdom only captures content that's currently rendered in the
-         viewport — anything off-screen comes back as an empty canvas.
-         Re-mark for capture each time the element enters the viewport
-         (with a generous rootMargin so we catch it just before scroll). */
-      if (typeof IntersectionObserver !== "undefined") {
-        const io = new IntersectionObserver(
-          (entries) => {
-            const m = this._dynMeta.get(el);
-            if (!m) return;
-            for (let i = 0; i < entries.length; i++) {
-              if (entries[i].isIntersecting) {
-                m.needsRecapture = true;
-                requestAnimationFrame(() => this.render());
-                break;
-              }
-            }
-          },
-          { rootMargin: "200px" }
-        );
-        io.observe(el);
-        meta._viewportObserver = io;
-      }
 
       const setDirty = () => {
         const m = this._dynMeta.get(el);
@@ -2349,7 +1968,6 @@
       tilt: false,
       tiltFactor: 5,
       magnify: 1,
-      engine: "snapdom",
       on: {},
     };
     const options = { ...defaults, ...userOptions };
@@ -2384,11 +2002,7 @@
 
     let renderer = window.__liquidGLRenderer__;
     if (!renderer) {
-      renderer = new liquidGLRenderer(
-        options.snapshot,
-        options.resolution,
-        options.engine
-      );
+      renderer = new liquidGLRenderer(options.snapshot, options.resolution);
       window.__liquidGLRenderer__ = renderer;
     }
 

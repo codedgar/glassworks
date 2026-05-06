@@ -449,8 +449,24 @@
     ></script>
 
     <!-- Scripts -->
-    <script src="/scripts/html2canvas.min.js"></script>
-    <script src="/scripts/liquidGL.js"></script>
+    <script>
+      /* Default = snapdom (faster, with html2canvas lazy-loaded as fallback
+         when needed). ?ver=html2canvas opts back to the legacy pipeline. */
+      (function () {
+        var useLegacy =
+          new URLSearchParams(location.search).get("ver") === "html2canvas";
+        var captureLib = useLegacy
+          ? "/scripts/html2canvas.min.js"
+          : "https://cdn.jsdelivr.net/npm/@zumer/snapdom@2.9.0/dist/snapdom.js";
+        var libSrc = useLegacy
+          ? "/scripts/liquidGL-legacy.js"
+          : "/scripts/liquidGL.js";
+        document.write(
+          '<script src="' + captureLib + '"><\/script>' +
+          '<script src="' + libSrc + '"><\/script>'
+        );
+      })();
+    </script>
     <script>
       let glassEffect; // Declare in a higher scope to be accessible across event listeners
 

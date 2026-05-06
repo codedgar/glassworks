@@ -919,8 +919,104 @@
     <script src="https://cdn.jsdelivr.net/npm/@studio-freight/lenis@1.0.42/dist/lenis.min.js" integrity="sha384-li4UtcFCH6QeUqR4JyV58/VgTprMuz9aauj+oWtew7V4Y7ZVjnvz5px9Y3UCG0Ea" crossorigin="anonymous"></script>
     
     <!-- Scripts -->
-    <script src="/scripts/html2canvas.min.js"></script>
-    <script src="/scripts/liquidGL.js"></script>
+    <script>
+      /* Capture-lib selection: snapdom is the default (faster, lazy-loads
+         html2canvas only when needed for absolute-positioned overlays).
+         ?ver=html2canvas opts back to the legacy pipeline. */
+      (function () {
+        var useLegacy =
+          new URLSearchParams(location.search).get("ver") === "html2canvas";
+        var captureLib = useLegacy
+          ? "/scripts/html2canvas.min.js"
+          : "https://cdn.jsdelivr.net/npm/@zumer/snapdom@2.9.0/dist/snapdom.js";
+        var libSrc = useLegacy
+          ? "/scripts/liquidGL-legacy.js"
+          : "/scripts/liquidGL.js";
+        document.write(
+          '<script src="' + captureLib + '"><\/script>' +
+          '<script src="' + libSrc + '"><\/script>'
+        );
+      })();
+    </script>
+    <script>
+      /* Perf HUD — visible whenever ?perf=1 is set, regardless of capture lib. */
+      (function () {
+        if (new URLSearchParams(location.search).get("perf") !== "1") return;
+
+        var hud = document.createElement("div");
+        hud.id = "liquidgl-perf-hud";
+        hud.style.cssText =
+          "position:fixed;top:12px;right:12px;z-index:99999;" +
+          "background:rgba(0,0,0,0.78);color:#fff;padding:8px 12px;" +
+          "border-radius:6px;font-size:11px;font-weight:600;" +
+          "font-family:ui-monospace,SFMono-Regular,Menlo,monospace;" +
+          "line-height:1.5;min-width:180px;pointer-events:none;";
+        hud.innerHTML =
+          '<div style="opacity:0.55;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">capture perf</div>' +
+          '<div style="display:flex;justify-content:space-between;gap:12px;"><span style="opacity:0.55;">last</span><span id="lglPerfLast">—</span></div>' +
+          '<div style="display:flex;justify-content:space-between;gap:12px;"><span style="opacity:0.55;">avg</span><span id="lglPerfAvg">—</span></div>' +
+          '<div style="display:flex;justify-content:space-between;gap:12px;"><span style="opacity:0.55;">min/max</span><span id="lglPerfMinMax">—</span></div>' +
+          '<div style="display:flex;justify-content:space-between;gap:12px;"><span style="opacity:0.55;">samples</span><span id="lglPerfN">0</span></div>';
+        document.addEventListener("DOMContentLoaded", function () {
+          document.body.appendChild(hud);
+        });
+
+        var samples = [];
+        function record(ms) {
+          samples.push(ms);
+          var warm = samples.slice(1);
+          var avg = warm.length
+            ? warm.reduce(function (a, b) { return a + b; }, 0) / warm.length
+            : ms;
+          var min = warm.length ? Math.min.apply(null, warm) : ms;
+          var max = warm.length ? Math.max.apply(null, warm) : ms;
+          var $ = function (id) { return document.getElementById(id); };
+          if ($("lglPerfLast")) $("lglPerfLast").textContent = ms.toFixed(1) + " ms";
+          if ($("lglPerfAvg"))
+            $("lglPerfAvg").textContent =
+              avg.toFixed(1) + " ms" + (warm.length ? "" : " *");
+          if ($("lglPerfMinMax"))
+            $("lglPerfMinMax").textContent = min.toFixed(1) + " / " + max.toFixed(1);
+          if ($("lglPerfN"))
+            $("lglPerfN").textContent =
+              samples.length + (warm.length ? "" : " (warming)");
+        }
+
+        function tryInstrument() {
+          var useLegacy =
+            new URLSearchParams(location.search).get("ver") === "html2canvas";
+          if (!useLegacy) {
+            if (typeof window.snapdom === "undefined" || window.__lglPerfHooked) return;
+            var orig = window.snapdom.toCanvas.bind(window.snapdom);
+            window.snapdom.toCanvas = function () {
+              var t = performance.now();
+              var args = arguments;
+              return Promise.resolve(orig.apply(null, args)).then(function (r) {
+                record(performance.now() - t);
+                return r;
+              });
+            };
+            window.__lglPerfHooked = true;
+          } else {
+            if (typeof window.html2canvas !== "function" || window.__lglPerfHooked) return;
+            var origH = window.html2canvas;
+            window.html2canvas = function () {
+              var t = performance.now();
+              var p = origH.apply(null, arguments);
+              return Promise.resolve(p).then(function (r) {
+                record(performance.now() - t);
+                return r;
+              });
+            };
+            window.__lglPerfHooked = true;
+          }
+        }
+
+        // The capture lib is loaded synchronously via document.write above,
+        // so it's already on window by the time this runs in script order.
+        tryInstrument();
+      })();
+    </script>
     <script>
       /* OPTIONAL - Register GSAP SplitText */
       gsap.registerPlugin(SplitText);
@@ -965,13 +1061,16 @@
 
         let progress = { value: 0 };
         const loadingTl = gsap.timeline();
-        loadingTl.to(progress, {
-          value: 100,
-          duration: 1.5,
-          ease: "power1.inOut",
-          onUpdate: () => {
-            gsap.set(preloaderProgress, { width: `${progress.value}%` });
-          },
+        const loadingDone = new Promise((resolve) => {
+          loadingTl.to(progress, {
+            value: 100,
+            duration: 1.5,
+            ease: "power1.inOut",
+            onUpdate: () => {
+              gsap.set(preloaderProgress, { width: `${progress.value}%` });
+            },
+            onComplete: resolve,
+          });
         });
 
         /* RECOMMENDED - Wait for fonts to be loaded */
@@ -1033,7 +1132,7 @@
                 /* You can animate the target element to create a more dynamic effect,
                 or use the on.init callback to run any code after liquidGL is initialised. */
                 /* Preloader Animation */
-                loadingTl.then(() => {
+                loadingDone.then(() => {
                   gsap.to(preloader, {
                     yPercent: -100,
                     duration: 1,

@@ -65,6 +65,7 @@
 
       .pane-header.upstream { color: #ff7a7a; }
       .pane-header.fork { color: #7aff9a; }
+      .pane-header.snapdom { color: #7ab8ff; }
 
       iframe {
         flex: 1 1 auto;
@@ -77,28 +78,27 @@
   </head>
   <body>
     <header>
-      <h1>liquidGL — Upstream vs Patched Fork</h1>
+      <h1>liquidGL — Snapdom Port vs Patched Fork (html2canvas)</h1>
       <p>
-        Both panes show the same long page with six lenses in normal flow, each over a labeled white target stripe. Scroll either side — the other follows.
-        On the upstream build, every lens is misaligned: each lens's own collapse shifts its target up, and each additional lens above adds more cumulative drift, so the offset grows with depth. The patched fork keeps every lens locked to its target at every scroll position.
+        Both panes run the same scene. Left swaps html2canvas for snapdom; right is our patched html2canvas build. They should look identical — same lens alignment, same refraction — and snapdom should feel faster on capture.
       </p>
     </header>
 
     <div class="panes">
       <div class="pane">
-        <div class="pane-header upstream">Upstream (buggy) — naughtyduk/liquidGL@latest</div>
+        <div class="pane-header snapdom">Snapdom build — /scripts/liquidGL.js</div>
         <iframe
           id="frameUpstream"
-          src="/demos/comparison-scene.html?ver=upstream"
-          title="Upstream"
+          src="/demos/comparison-scene.html?ver=snapdom"
+          title="Snapdom port"
         ></iframe>
       </div>
       <div class="pane">
-        <div class="pane-header fork">Patched fork — /scripts/liquidGL.js</div>
+        <div class="pane-header fork">Legacy build (html2canvas) — /scripts/liquidGL-legacy.js</div>
         <iframe
           id="frameFork"
           src="/demos/comparison-scene.html?ver=local"
-          title="Patched"
+          title="Patched fork"
         ></iframe>
       </div>
     </div>

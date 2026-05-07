@@ -133,35 +133,197 @@
   }
 
   /* --------------------------------------------------
-   *  snapdom adapter (with html2canvas hybrid fallback)
+   *  CSS background-image shim for WebKit.
    *  -----------------------------------------------------------
-   *  Pure snapdom path when the capture target has no absolute
-   *  descendants. Otherwise, capture the base with snapdom (with
-   *  the absolute descendants temporarily hidden) and overlay each
-   *  absolute descendant via html2canvas at its computed rect.
+   *  On WebKit/Safari, snapdom drops CSS `background-image: url(...)`
+   *  declarations from the rasterised foreignObject (probably the
+   *  same long-standing WebKit bug that affects html2canvas too —
+   *  CSS bg images simply don't paint inside `<foreignObject>`).
+   *  `<img>` tags, on the other hand, render fine.
    *
-   *  Note on excludeMode: snapdom's default 'hide' mode replaces
-   *  excluded nodes with a `display:inline-block` spacer, which
-   *  silently changes the layout context for block-level elements
-   *  (line box, baseline alignment) and reintroduces drift on long
-   *  pages. To preserve exact layout we set `visibility: hidden`
-   *  directly on the live element instead — the original element's
-   *  display/margin rules stay intact, content just isn't painted.
+   *  Workaround: right before snapdom captures, walk the target
+   *  for elements whose computed `background-image` is a single
+   *  url(...) and inject a transparent absolutely-positioned `<img>`
+   *  child that paints the same image at the same size/position.
+   *  snapdom captures the `<img>`; we remove it immediately after.
+   *  Because the inserted image visually matches the live bg, the
+   *  user never sees a flash even if the capture takes a moment.
+   *
+   *  Engine-agnostic. Does the right thing on engines where snapdom
+   *  *would* have captured the bg fine — same image gets rendered
+   *  in the same place, no visible difference, ~5–20ms overhead.
    * ------------------------------------------------*/
-  function findAbsoluteDescendants(target, ignore) {
-    const result = [];
+  function parseBackgroundImageUrl(value) {
+    if (!value || value === "none") return null;
+    /* Only single url() backgrounds. Comma-separated stacks and
+       gradient layers are uncommon for the snapshot-target case
+       and snapdom already handles gradients via the SVG paint-
+       server path (which works on WebKit). */
+    const m = value.match(/^url\(["']?([^)"']+)["']?\)\s*$/);
+    return m ? m[1] : null;
+  }
+
+  function bgPositionToObjectPosition(posStr) {
+    /* CSS `background-position` and `object-position` use the same
+       grammar for the cases we care about (keywords, %, px). For
+       the homepage's `background-position: center` this is a 1:1
+       carry-over. */
+    return posStr || "50% 50%";
+  }
+
+  function bgSizeToObjectFit(sizeStr) {
+    if (sizeStr === "cover") return "cover";
+    if (sizeStr === "contain") return "contain";
+    return "cover";
+  }
+
+  async function injectBackgroundImageShims(target) {
+    /* Returns a list of cleanup functions to run after snapdom
+       captures. Each function removes the injected <img> and
+       restores the host element's CSS if we changed it. The
+       function awaits all shim loads before resolving so snapdom
+       sees fully-decoded `<img>` elements (an empty `<img>` would
+       serialise the same way the bg-image does — i.e. blank). */
+    const cleanups = [];
+    const loadPromises = [];
+    if (!target || !target.querySelectorAll) return cleanups;
     const all = target.querySelectorAll("*");
     for (let i = 0; i < all.length; i++) {
       const el = all[i];
+      let cs;
       try {
-        if (typeof ignore === "function" && ignore(el)) continue;
+        cs = window.getComputedStyle(el);
       } catch (_) {
-        /* defensive */
+        continue;
       }
-      const cs = window.getComputedStyle(el);
-      if (cs.position === "absolute") result.push(el);
+      const url = parseBackgroundImageUrl(cs.backgroundImage);
+      if (!url) continue;
+
+      /* The shim has to paint *behind* the host's normal-flow
+         children (so the existing text remains in front). That
+         means giving it `z-index: -1` inside a stacking context
+         scoped to the host. We create that context with
+         `isolation: isolate` (no layout side-effects) and set
+         `position: relative` if the host is currently `static`
+         so the absolutely-positioned shim resolves against it. */
+      const restoreFns = [];
+      if (cs.position === "static") {
+        const prev = el.style.position;
+        el.style.position = "relative";
+        restoreFns.push(() => { el.style.position = prev; });
+      }
+      if (cs.isolation !== "isolate") {
+        const prev = el.style.isolation;
+        el.style.isolation = "isolate";
+        restoreFns.push(() => { el.style.isolation = prev; });
+      }
+
+      const shim = document.createElement("img");
+      shim.crossOrigin = "anonymous";
+      /* Attribute the shim so the lens-renderer's ignore predicate
+         and other tooling don't pick it up during the same capture. */
+      shim.setAttribute("data-liquidgl-bg-shim", "");
+      shim.style.cssText = [
+        "position:absolute",
+        "inset:0",
+        "width:100%",
+        "height:100%",
+        "object-fit:" + bgSizeToObjectFit(cs.backgroundSize),
+        "object-position:" + bgPositionToObjectPosition(cs.backgroundPosition),
+        "pointer-events:none",
+        "z-index:-1",
+        "border-radius:" + cs.borderRadius,
+        "user-select:none",
+      ].join(";");
+
+      /* Resolve as soon as the shim is decoded, or after a short
+         timeout so a slow / failing image doesn't block the capture
+         indefinitely (snapdom will then capture an empty <img>
+         placeholder, identical behaviour to the pre-fix code). */
+      const loadP = new Promise((resolve) => {
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          resolve();
+        };
+        shim.addEventListener("load", finish, { once: true });
+        shim.addEventListener("error", finish, { once: true });
+        setTimeout(finish, 1500);
+      });
+      shim.src = url;
+      loadPromises.push(loadP);
+      el.insertBefore(shim, el.firstChild);
+
+      cleanups.push(() => {
+        if (shim.parentNode) shim.parentNode.removeChild(shim);
+        for (let r = restoreFns.length - 1; r >= 0; r--) restoreFns[r]();
+      });
     }
-    return result;
+    if (loadPromises.length) await Promise.all(loadPromises);
+    return cleanups;
+  }
+
+  /* --------------------------------------------------
+   *  snapdom adapter (with automatic html2canvas fallback for
+   *  the foreignObject completeness bug).
+   *  -----------------------------------------------------------
+   *  Hiding ignored elements: we mark live-DOM nodes with
+   *  `visibility: hidden` for the duration of a capture and restore
+   *  immediately after. snapdom v2.9's `filter` option (which would
+   *  apply hidden in the cloned DOM only) inflates the canvas
+   *  bounding box ~1.6x for reasons we haven't isolated, so we
+   *  stick with the live-DOM approach. The window is short
+   *  (~50–200ms on Chromium for a viewport-sized capture) so users
+   *  rarely see the elements blink. Slow renderers can be addressed
+   *  by capturing at a lower scale or against a smaller target.
+   *
+   *  Black-region fallback: Chromium-family browsers clip
+   *  `<foreignObject>` content beyond the viewport-tall portion of
+   *  the body — captures of tall pages return mostly-empty canvases
+   *  past the first viewport. WebKit handles full-height capture
+   *  fine. We detect the failure by sampling the bottom portion of
+   *  the canvas; if it's empty we re-run the capture via html2canvas,
+   *  which paints regardless of viewport. The chosen engine is
+   *  cached on the renderer, so we pay this detection cost once.
+   * ------------------------------------------------*/
+
+  /* Sample a few rows in the lower half of a captured canvas. If they
+     are entirely transparent / black it means snapdom's foreignObject
+     was clipped (Chromium bug). Returns true if the snapshot looks
+     complete. */
+  function snapshotLooksComplete(canvas) {
+    if (!canvas || canvas.width <= 0 || canvas.height <= 0) return false;
+    if (canvas.height < 200) return true; /* short capture: trust it */
+    let ctx;
+    try {
+      ctx = canvas.getContext("2d", { willReadFrequently: true });
+    } catch (_) {
+      return true;
+    }
+    if (!ctx) return true;
+    const sampleRows = [
+      Math.floor(canvas.height * 0.55),
+      Math.floor(canvas.height * 0.75),
+      Math.max(0, canvas.height - 32),
+    ];
+    for (let r = 0; r < sampleRows.length; r++) {
+      const y = sampleRows[r];
+      let data;
+      try {
+        data = ctx.getImageData(0, y, canvas.width, 1).data;
+      } catch (_) {
+        return true;
+      }
+      let opaqueCount = 0;
+      const total = data.length / 4;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] > 16) opaqueCount++;
+      }
+      /* If at least 1% of the row has any opacity, this row is fine. */
+      if (opaqueCount / total > 0.01) return true;
+    }
+    return false;
   }
 
   async function snapdomCapture(target, scale) {
@@ -180,11 +342,11 @@
   }
 
   /* --------------------------------------------------
-   *  html2canvas-only capture path (engine: "html2canvas").
-   *  Same drift fix as the legacy build: tag elements with
-   *  data-liquidgl-hide on live DOM, then have html2canvas's
-   *  onclone hook apply visibility:hidden to those tags inside
-   *  the cloned tree. Layout is preserved, no live-DOM flicker.
+   *  html2canvas full-target capture (engine: "html2canvas"
+   *  or auto-fallback when snapdom returns an incomplete canvas).
+   *  Uses `data-liquidgl-hide` + the `onclone` hook to apply
+   *  visibility:hidden in the cloned document (no live-DOM
+   *  mutation visible to the user).
    * ------------------------------------------------*/
   async function captureViaHtml2canvas(target, { scale, ignore } = {}) {
     const html2canvas = await ensureHtml2canvas();
@@ -222,10 +384,6 @@
         scale: scale,
         logging: false,
         ignoreElements: (element) => {
-          /* Only the canvas itself uses the hard ignore (display:none in
-             clone) since it's position:fixed and contributes no flow.
-             Everything else is hidden via the visibility:hidden onclone
-             path below so layout is preserved (the drift fix). */
           return (
             element &&
             element.tagName === "CANVAS" &&
@@ -248,18 +406,29 @@
     }
   }
 
-  async function snapToCanvas(target, { scale, ignore, engine } = {}) {
-    if ((engine || "snapdom") === "html2canvas") {
+  async function snapToCanvas(
+    target,
+    { scale, ignore, engine, onEngineFallback, validateCompleteness } = {}
+  ) {
+    const requested = engine || "snapdom";
+    if (requested === "html2canvas") {
       return await captureViaHtml2canvas(target, { scale, ignore });
     }
 
     if (typeof snapdom === "undefined") {
-      throw new Error("liquidGL: snapdom is not loaded");
+      console.warn(
+        "liquidGL: snapdom is not loaded — falling back to html2canvas."
+      );
+      if (typeof onEngineFallback === "function") onEngineFallback("html2canvas");
+      return await captureViaHtml2canvas(target, { scale, ignore });
     }
 
+    /* Hide ignored elements via live-DOM `visibility: hidden`. Layout
+       is preserved (visibility, unlike display:none, keeps the box
+       around) and we restore in `finally` so the page is never left
+       in a half-modified state if snapdom throws or the renderer
+       calls cancel. */
     const restores = [];
-
-    /* Apply ignore predicate via visibility:hidden on live DOM. */
     if (typeof ignore === "function") {
       const all = target.querySelectorAll("*");
       for (let i = 0; i < all.length; i++) {
@@ -273,113 +442,65 @@
             });
           }
         } catch (_) {
-          /* defensive: ignore predicates that throw on detached nodes */
+          /* defensive: predicates that throw on detached / shadow nodes */
         }
       }
     }
 
+    /* Inject `<img>` shims for elements styled with `background-image:
+       url(...)`. snapdom on WebKit can't paint CSS bg-images inside
+       its `<foreignObject>` clone, but `<img>` tags work fine. The
+       shims paint identically to the live bg, so injection is
+       visually invisible to anyone watching the page. The same
+       WebKit bug affects html2canvas, so we keep the shims in place
+       through the fallback path too. */
+    const bgShimCleanups = await injectBackgroundImageShims(target);
+
+    const cleanupAllShims = () => {
+      for (let i = bgShimCleanups.length - 1; i >= 0; i--) {
+        try { bgShimCleanups[i](); } catch (_) {}
+      }
+      bgShimCleanups.length = 0;
+    };
+
+    let canvas;
+    let snapdomThrew = false;
     try {
-      const absoluteEls = findAbsoluteDescendants(target, ignore);
-      if (absoluteEls.length === 0) {
-        return await snapdomCapture(target, scale);
-      }
-
-      /* Hybrid path: snapdom for the base (with absolute descendants
-         temporarily hidden), html2canvas for each absolute element,
-         then composite. */
-      let html2canvas;
-      try {
-        html2canvas = await ensureHtml2canvas();
-      } catch (e) {
-        console.warn(
-          "liquidGL: html2canvas fallback unavailable; capturing without absolute overlays",
-          e
-        );
-        return await snapdomCapture(target, scale);
-      }
-
-      const hideRestores = absoluteEls.map((el) => {
-        const prev = el.style.visibility;
-        el.style.visibility = "hidden";
-        return () => {
-          el.style.visibility = prev;
-        };
-      });
-
-      let baseCanvas;
-      try {
-        baseCanvas = await snapdomCapture(target, scale);
-      } finally {
-        for (let i = hideRestores.length - 1; i >= 0; i--) {
-          hideRestores[i]();
-        }
-      }
-
-      const targetRect = target.getBoundingClientRect();
-      const ctx = baseCanvas.getContext("2d");
-
-      for (let i = 0; i < absoluteEls.length; i++) {
-        const el = absoluteEls[i];
-        try {
-          const elRect = el.getBoundingClientRect();
-          if (elRect.width <= 0 || elRect.height <= 0) continue;
-
-          /* Absolute elements often have content that overflows their box
-             (e.g. `padding-top: 150svh` pushing text past `height: 100%`).
-             Walk descendants to compute the actual visual bounds so the
-             html2canvas capture and composite include the full content. */
-          let vbTop = elRect.top;
-          let vbLeft = elRect.left;
-          let vbBottom = elRect.bottom;
-          let vbRight = elRect.right;
-          const descendants = el.querySelectorAll("*");
-          for (let j = 0; j < descendants.length; j++) {
-            const r = descendants[j].getBoundingClientRect();
-            if (r.width <= 0 || r.height <= 0) continue;
-            if (r.top < vbTop) vbTop = r.top;
-            if (r.left < vbLeft) vbLeft = r.left;
-            if (r.bottom > vbBottom) vbBottom = r.bottom;
-            if (r.right > vbRight) vbRight = r.right;
-          }
-          const vbWidth = vbRight - vbLeft;
-          const vbHeight = vbBottom - vbTop;
-
-          const overlay = await html2canvas(el, {
-            scale: scale,
-            useCORS: true,
-            allowTaint: false,
-            backgroundColor: null,
-            logging: false,
-            width: vbWidth,
-            height: vbHeight,
-            x: vbLeft - elRect.left,
-            y: vbTop - elRect.top,
-          });
-          if (!overlay || overlay.width === 0 || overlay.height === 0) {
-            continue;
-          }
-          ctx.drawImage(
-            overlay,
-            (vbLeft - targetRect.left) * scale,
-            (vbTop - targetRect.top) * scale,
-            vbWidth * scale,
-            vbHeight * scale
-          );
-        } catch (e) {
-          console.warn(
-            "liquidGL: failed to composite absolute element via html2canvas",
-            el,
-            e
-          );
-        }
-      }
-
-      return baseCanvas;
+      canvas = await snapdomCapture(target, scale);
+    } catch (e) {
+      snapdomThrew = true;
+      console.warn(
+        "liquidGL: snapdom capture threw — falling back to html2canvas.",
+        e
+      );
     } finally {
       for (let i = restores.length - 1; i >= 0; i--) {
         restores[i]();
       }
     }
+
+    /* Completeness check is only meaningful for full-page snapshots
+       — dynamic element captures legitimately contain transparent
+       regions (e.g. a SplitText line with mostly empty bg) that would
+       trigger a false-positive fallback otherwise. */
+    const shouldValidate = validateCompleteness === true;
+
+    if (snapdomThrew || (shouldValidate && !snapshotLooksComplete(canvas))) {
+      if (!snapdomThrew) {
+        console.warn(
+          "liquidGL: snapdom capture returned an incomplete canvas (foreignObject clip) — switching to html2canvas."
+        );
+      }
+      if (typeof onEngineFallback === "function") onEngineFallback("html2canvas");
+      try {
+        return await captureViaHtml2canvas(target, { scale, ignore });
+      } finally {
+        cleanupAllShims();
+      }
+    }
+
+    cleanupAllShims();
+    return canvas;
   }
 
   /* --------------------------------------------------
@@ -478,7 +599,19 @@
       );
 
       this._resizeCanvas();
-      this.captureSnapshot();
+      /* Defer the first capture by one microtask. This lets the user
+         finish registering dynamic elements (registerDynamic batches
+         on the same tick) before snapdom runs, so we capture *once*
+         with the full ignore set instead of capturing twice — once
+         with all dynamic content visible, then again with it hidden.
+         On Safari, where snapdom is slow, that double-capture is the
+         most likely cause of the "text disappears for a beat after
+         load" behaviour. */
+      this._captureRequested = true;
+      Promise.resolve().then(() => {
+        this._captureRequested = false;
+        this.captureSnapshot();
+      });
 
       this._pendingReveal = [];
 
@@ -680,17 +813,77 @@
       const gl = this.gl;
       if (!this.program) throw new Error("liquidGL: Shader failed");
 
-      const posBuf = gl.createBuffer();
-      gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+      /* --------------------------------------------------
+       *  Video-blit pipeline (GPU-side video → texture-region scale).
+       *  -----------------------------------------------------------
+       *  The original per-frame video update path was:
+       *    drawImage(staticBg) → drawImage(video) → texSubImage2D(canvas)
+       *  Each frame triggers a GPU→CPU pull of the decoded video
+       *  frame (drawImage from a hardware-decoded video) and a
+       *  CPU→GPU upload of the resulting canvas. On Chrome that
+       *  pipeline is fast because Skia + ANGLE optimise it; on
+       *  Safari and Firefox it's the dominant frame cost on the
+       *  hero — it dwarfs the lens shader itself.
+       *
+       *  This pipeline keeps everything on the GPU. We:
+       *    1. texImage2D the video element into a scratch texture
+       *       (browser does GPU→GPU copy from the decoded surface).
+       *    2. Bind a framebuffer with the *main* texture as colour
+       *       attachment, viewport set to the destination region.
+       *    3. Draw a textured quad sampling the scratch — that's
+       *       the scaling pass; the GPU rasteriser handles it for
+       *       free.
+       *  No CPU round-trip, no drawImage, no canvas backing store.
+       *
+       *  Used only for videos *without* border-radius (the common
+       *  case). Rounded videos still go through the canvas path
+       *  because we need 2D `clip()` for the rounded mask.
+       * ------------------------------------------------*/
+      const vBlitVs = `
+        attribute vec2 a_pos;
+        varying vec2 v_uv;
+        void main(){
+          v_uv = (a_pos + 1.0) * 0.5;
+          gl_Position = vec4(a_pos, 0.0, 1.0);
+        }`;
+      const vBlitFs = `
+        precision mediump float;
+        varying vec2 v_uv;
+        uniform sampler2D u_src;
+        void main(){
+          gl_FragColor = texture2D(u_src, v_uv);
+        }`;
+      this._vBlitProgram = createProgram(gl, vBlitVs, vBlitFs);
+      if (this._vBlitProgram) {
+        this._vBlitPosLoc = gl.getAttribLocation(this._vBlitProgram, "a_pos");
+        this._vBlitTexLoc = gl.getUniformLocation(this._vBlitProgram, "u_src");
+        this._vBlitQuadBuf = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this._vBlitQuadBuf);
+        gl.bufferData(
+          gl.ARRAY_BUFFER,
+          new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
+          gl.STATIC_DRAW
+        );
+        this._vBlitFbo = gl.createFramebuffer();
+        this._vScratchTex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, this._vScratchTex);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      }
+
+      this._lensQuadBuf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, this._lensQuadBuf);
       gl.bufferData(
         gl.ARRAY_BUFFER,
         new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
         gl.STATIC_DRAW
       );
 
-      const posLoc = gl.getAttribLocation(this.program, "a_position");
-      gl.enableVertexAttribArray(posLoc);
-      gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+      this._lensPosLoc = gl.getAttribLocation(this.program, "a_position");
+      gl.enableVertexAttribArray(this._lensPosLoc);
+      gl.vertexAttribPointer(this._lensPosLoc, 2, gl.FLOAT, false, 0, 0);
 
       this.u = {
         tex: gl.getUniformLocation(this.program, "u_tex"),
@@ -805,6 +998,12 @@
             scale: scale,
             ignore: ignoreElementsFunc,
             engine: this._engine,
+            validateCompleteness: true,
+            onEngineFallback: (next) => {
+              /* Cache the engine that worked so future captures skip
+                 the failed snapdom path entirely. */
+              this._engine = next;
+            },
           });
 
           this._uploadTexture(snapCanvas);
@@ -860,6 +1059,24 @@
       }
 
       if (srcCanvas.width === 0 || srcCanvas.height === 0) return;
+
+      /* snapdom occasionally returns a canvas a few pixels larger than
+         our requested scale × source dimensions due to internal
+         rounding. If it's even one pixel over MAX_TEXTURE_SIZE the
+         WebGL allocation fails with INVALID_VALUE and *every* subsequent
+         texSubImage2D errors with "Level of detail outside of range".
+         Crop to fit before uploading. */
+      const maxTex = this.gl.getParameter(this.gl.MAX_TEXTURE_SIZE) || 8192;
+      if (srcCanvas.width > maxTex || srcCanvas.height > maxTex) {
+        const cw = Math.min(srcCanvas.width, maxTex);
+        const ch = Math.min(srcCanvas.height, maxTex);
+        const tmp = document.createElement("canvas");
+        tmp.width = cw;
+        tmp.height = ch;
+        tmp.getContext("2d").drawImage(srcCanvas, 0, 0, cw, ch, 0, 0, cw, ch);
+        srcCanvas = tmp;
+      }
+
       this.staticSnapshotCanvas = srcCanvas;
       const gl = this.gl;
       if (!this.texture) this.texture = gl.createTexture();
@@ -880,6 +1097,18 @@
 
       this.textureWidth = srcCanvas.width;
       this.textureHeight = srcCanvas.height;
+
+      /* The texture was just re-allocated (potentially at a new size),
+         so any cached `prevDrawRect` from a previous dynamic-node frame
+         now references stale texel coordinates. Clear them so the next
+         render redraws cleanly without trying to "erase" pixels at
+         offsets that may now be out of bounds. */
+      if (this._dynMeta && this._dynamicNodes) {
+        for (let i = 0; i < this._dynamicNodes.length; i++) {
+          const meta = this._dynMeta.get(this._dynamicNodes[i].el);
+          if (meta) meta.prevDrawRect = null;
+        }
+      }
 
       this.render();
 
@@ -1059,6 +1288,87 @@
     }
 
     /* ----------------------------- */
+    _blitVideoToRegion(vid, dstX, dstY, drawW, drawH) {
+      /* GPU-side path: upload the video to a scratch texture, then
+         render a textured quad into the destination region of the
+         main texture via framebuffer. Returns true on success. */
+      const gl = this.gl;
+      if (!this._vBlitProgram) return false;
+
+      try {
+        gl.bindTexture(gl.TEXTURE_2D, this._vScratchTex);
+        /* Match the rest of the renderer: FLIP_Y=false on upload so
+           the source's top scan-line lands at low texel-y, identical
+           to the texSubImage2D path. The lens shader's
+           `1.0 - localUV.y` flip then resolves correctly. */
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,
+          gl.RGBA,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          vid
+        );
+      } catch (_) {
+        return false;
+      }
+
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this._vBlitFbo);
+      gl.framebufferTexture2D(
+        gl.FRAMEBUFFER,
+        gl.COLOR_ATTACHMENT0,
+        gl.TEXTURE_2D,
+        this.texture,
+        0
+      );
+      const fbStatus = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+      if (fbStatus !== gl.FRAMEBUFFER_COMPLETE) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        return false;
+      }
+
+      /* Framebuffer Y axis is bottom-up; the lens-shader assumes
+         "small v = canvas top" — so to match, we point the viewport
+         at the BOTTOM of the destination region in framebuffer
+         coords. With FLIP_Y=false on the scratch upload, the video's
+         top scanline is at v=0; the simple vertex shader maps
+         framebuffer-bottom → v=0 → video top → matches lens-shader
+         convention. */
+      gl.viewport(dstX, dstY, drawW, drawH);
+      gl.disable(gl.SCISSOR_TEST);
+
+      gl.useProgram(this._vBlitProgram);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, this._vScratchTex);
+      gl.uniform1i(this._vBlitTexLoc, 0);
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, this._vBlitQuadBuf);
+      gl.enableVertexAttribArray(this._vBlitPosLoc);
+      gl.vertexAttribPointer(this._vBlitPosLoc, 2, gl.FLOAT, false, 0, 0);
+
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+      /* Restore main render state. `_renderLens` doesn't re-bind
+         the lens vertex buffer or pin the program every call (it
+         was set up once at init and after each lens uses gl.uniform
+         + gl.drawArrays), so we have to put everything back exactly
+         the way it was. */
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+      gl.useProgram(this.program);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this._lensQuadBuf);
+      gl.enableVertexAttribArray(this._lensPosLoc);
+      gl.vertexAttribPointer(this._lensPosLoc, 2, gl.FLOAT, false, 0, 0);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, this.texture);
+      gl.uniform1i(this.u.tex, 0);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+      return true;
+    }
+
+    /* ----------------------------- */
     _updateDynamicVideos() {
       if (this._isScrolling && this._scrollUpdateCounter % 2 !== 0) return;
       if (
@@ -1073,6 +1383,8 @@
 
       const maxLensZ = this._getMaxLensZ();
 
+      const lensRectsForVid = this.lenses.map((ln) => ln.rectPx).filter(Boolean);
+
       this._videoNodes.forEach((vid) => {
         if (effectiveZ(vid) >= maxLensZ) {
           return;
@@ -1081,6 +1393,22 @@
         if (this._isIgnored(vid) || vid.readyState < 2) return;
 
         const rect = vid.getBoundingClientRect();
+
+        /* Skip videos whose document-space rect doesn't intersect any
+           lens — uploading their frame to the texture is wasted work
+           if no lens samples that region. This saves a per-frame
+           drawImage + texSubImage2D for offscreen / out-of-flow videos
+           (e.g. fullscreen players translated offscreen, hero videos
+           after the user has scrolled past them). */
+        const intersectsAnyLens = lensRectsForVid.some(
+          (lr) =>
+            rect.left < lr.left + lr.width &&
+            rect.left + rect.width > lr.left &&
+            rect.top < lr.top + lr.height &&
+            rect.top + rect.height > lr.top
+        );
+        if (!intersectsAnyLens) return;
+
         const texX = (rect.left - snapRect.left) * this.scaleFactor;
         const texY = (rect.top - snapRect.top) * this.scaleFactor;
         const texW = rect.width * this.scaleFactor;
@@ -1091,59 +1419,8 @@
 
         if (drawW <= 0 || drawH <= 0) return;
 
-        if (
-          this._tmpCanvas.width !== drawW ||
-          this._tmpCanvas.height !== drawH
-        ) {
-          this._tmpCanvas.width = drawW;
-          this._tmpCanvas.height = drawH;
-        }
-
-        try {
-          this._tmpCtx.save();
-          this._tmpCtx.clearRect(0, 0, drawW, drawH);
-
-          const style = window.getComputedStyle(vid);
-          const scaledRadii = {
-            tl: parseFloat(style.borderTopLeftRadius) * this.scaleFactor,
-            tr: parseFloat(style.borderTopRightRadius) * this.scaleFactor,
-            br: parseFloat(style.borderBottomRightRadius) * this.scaleFactor,
-            bl: parseFloat(style.borderBottomLeftRadius) * this.scaleFactor,
-          };
-
-          if (Object.values(scaledRadii).some((r) => r > 0)) {
-            this._createRoundedRectPath(
-              this._tmpCtx,
-              drawW,
-              drawH,
-              scaledRadii
-            );
-            this._tmpCtx.clip();
-          }
-
-          this._tmpCtx.drawImage(
-            this.staticSnapshotCanvas,
-            texX,
-            texY,
-            texW,
-            texH,
-            0,
-            0,
-            drawW,
-            drawH
-          );
-
-          this._tmpCtx.drawImage(vid, 0, 0, drawW, drawH);
-          this._tmpCtx.restore();
-        } catch (e) {
-          console.warn("liquidGL: Error drawing video frame", e);
-          return;
-        }
-
         const drawX = Math.round(texX);
         const drawY = Math.round(texY);
-
-        if (drawW <= 0 || drawH <= 0) return;
 
         const maxW = this.textureWidth;
         const maxH = this.textureHeight;
@@ -1174,17 +1451,125 @@
 
         if (updW <= 0 || updH <= 0) return;
 
+        const style = window.getComputedStyle(vid);
+        const scaledRadii = {
+          tl: parseFloat(style.borderTopLeftRadius) * this.scaleFactor,
+          tr: parseFloat(style.borderTopRightRadius) * this.scaleFactor,
+          br: parseFloat(style.borderBottomRightRadius) * this.scaleFactor,
+          bl: parseFloat(style.borderBottomLeftRadius) * this.scaleFactor,
+        };
+        const hasRadius = Object.values(scaledRadii).some((r) => r > 0);
+        const fitsExactly = updW === drawW && updH === drawH;
+
+        /* Fast path: video element straight to GPU via framebuffer
+           blit. No border-radius (no clipping mask needed) and the
+           destination region wasn't clipped at a texture edge (we'd
+           need source UV adjustment to handle that). For the
+           homepage hero this saves a 5MP `drawImage(staticBg)`, a
+           5MP `drawImage(video)`, and a 5MP `texSubImage2D(canvas)`
+           per frame — every frame ends up GPU-resident. */
+        if (!hasRadius && fitsExactly) {
+          if (this._blitVideoToRegion(vid, dstX, dstY, drawW, drawH)) {
+            return;
+          }
+          /* Fall through to canvas path on FBO failure (tainted
+             video, framebuffer-incomplete, etc.). */
+        }
+
+        if (
+          this._tmpCanvas.width !== drawW ||
+          this._tmpCanvas.height !== drawH
+        ) {
+          this._tmpCanvas.width = drawW;
+          this._tmpCanvas.height = drawH;
+        }
+
+        try {
+          this._tmpCtx.save();
+          this._tmpCtx.clearRect(0, 0, drawW, drawH);
+
+          if (hasRadius) {
+            this._createRoundedRectPath(
+              this._tmpCtx,
+              drawW,
+              drawH,
+              scaledRadii
+            );
+            this._tmpCtx.clip();
+            /* The static bg paints into the rounded mask's corners;
+               the video paints over the centre. We only need this
+               background fill when there *is* a mask — without one
+               the video drawImage covers the entire tmp canvas. */
+            this._tmpCtx.drawImage(
+              this.staticSnapshotCanvas,
+              texX,
+              texY,
+              texW,
+              texH,
+              0,
+              0,
+              drawW,
+              drawH
+            );
+          }
+
+          this._tmpCtx.drawImage(vid, 0, 0, drawW, drawH);
+          this._tmpCtx.restore();
+        } catch (e) {
+          console.warn("liquidGL: Error drawing video frame", e);
+          return;
+        }
+
         gl.bindTexture(gl.TEXTURE_2D, this.texture);
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-        gl.texSubImage2D(
-          gl.TEXTURE_2D,
-          0,
-          dstX,
-          dstY,
-          gl.RGBA,
-          gl.UNSIGNED_BYTE,
-          this._tmpCanvas
-        );
+        if (updW !== drawW || updH !== drawH) {
+          /* The destination region was clipped by texture bounds. We need
+             to upload only the clipped slice of `_tmpCanvas`, otherwise
+             texSubImage2D writes past the texture and Chromium throws
+             GL_INVALID_OPERATION ("Level of detail outside of range"). */
+          if (!this._videoUploadCanvas) {
+            this._videoUploadCanvas = document.createElement("canvas");
+            this._videoUploadCtx = this._videoUploadCanvas.getContext("2d");
+          }
+          if (
+            this._videoUploadCanvas.width !== updW ||
+            this._videoUploadCanvas.height !== updH
+          ) {
+            this._videoUploadCanvas.width = updW;
+            this._videoUploadCanvas.height = updH;
+          }
+          this._videoUploadCtx.clearRect(0, 0, updW, updH);
+          this._videoUploadCtx.drawImage(
+            this._tmpCanvas,
+            srcX,
+            srcY,
+            updW,
+            updH,
+            0,
+            0,
+            updW,
+            updH
+          );
+          gl.texSubImage2D(
+            gl.TEXTURE_2D,
+            0,
+            dstX,
+            dstY,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            this._videoUploadCanvas
+          );
+        } else {
+          gl.texSubImage2D(
+            gl.TEXTURE_2D,
+            0,
+            dstX,
+            dstY,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            this._tmpCanvas
+          );
+        }
       });
     }
 
@@ -1258,6 +1643,9 @@
             ignore: (n) =>
               n.tagName === "CANVAS" || n.hasAttribute("data-liquid-ignore"),
             engine: this._engine,
+            onEngineFallback: (next) => {
+              this._engine = next;
+            },
           })
             .then((cv) => {
               if (cv.width > 0 && cv.height > 0) {
@@ -1275,30 +1663,39 @@
 
         if (meta.lastCapture) {
           if (meta.prevDrawRect && !(this._workerEnabled && meta._heavyAnim)) {
-            const { x, y, w, h } = meta.prevDrawRect;
-            if (w > 0 && h > 0) {
+            /* Clamp the erase rect to the current texture bounds.
+               `prevDrawRect` was recorded against an earlier texture
+               which may have been larger (e.g. before an engine
+               fallback resized it). Without this clamp we'd write
+               past the right/bottom edge of the live texture and
+               trigger GL_INVALID_OPERATION on every dynamic frame. */
+            const px = Math.max(0, Math.min(meta.prevDrawRect.x, this.textureWidth));
+            const py = Math.max(0, Math.min(meta.prevDrawRect.y, this.textureHeight));
+            const pw = Math.max(0, Math.min(meta.prevDrawRect.w, this.textureWidth - px));
+            const ph = Math.max(0, Math.min(meta.prevDrawRect.h, this.textureHeight - py));
+            if (pw > 0 && ph > 0) {
               const eraseCanvas = this._compositeCtx.canvas;
-              if (eraseCanvas.width !== w || eraseCanvas.height !== h) {
-                eraseCanvas.width = w;
-                eraseCanvas.height = h;
+              if (eraseCanvas.width !== pw || eraseCanvas.height !== ph) {
+                eraseCanvas.width = pw;
+                eraseCanvas.height = ph;
               }
               this._compositeCtx.drawImage(
                 this.staticSnapshotCanvas,
-                x,
-                y,
-                w,
-                h,
+                px,
+                py,
+                pw,
+                ph,
                 0,
                 0,
-                w,
-                h
+                pw,
+                ph
               );
               gl.bindTexture(gl.TEXTURE_2D, this.texture);
               gl.texSubImage2D(
                 gl.TEXTURE_2D,
                 0,
-                x,
-                y,
+                px,
+                py,
                 gl.RGBA,
                 gl.UNSIGNED_BYTE,
                 eraseCanvas
@@ -2417,14 +2814,22 @@
 
   /* --------------------------------------------------
    *  Public helper: register elements that need live updates
+   *  Multiple calls in the same task tick are coalesced into a
+   *  single recapture (the homepage registers split lines and
+   *  containers separately, which previously triggered three
+   *  full-page captures back-to-back).
    * ------------------------------------------------*/
   window.liquidGL.registerDynamic = function (elements) {
     const renderer = window.__liquidGLRenderer__;
     if (!renderer || !renderer.addDynamicElement) return;
     renderer.addDynamicElement(elements);
-    if (renderer.captureSnapshot) {
+    if (!renderer.captureSnapshot) return;
+    if (renderer._captureRequested) return;
+    renderer._captureRequested = true;
+    Promise.resolve().then(() => {
+      renderer._captureRequested = false;
       renderer.captureSnapshot();
-    }
+    });
   };
 
   /* --------------------------------------------------

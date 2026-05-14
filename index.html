@@ -3,44 +3,153 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>liquidGL - Real-time WebGL Liquid Glass Effect - NaughtyDuk©</title>
-    <link rel="icon" href="/assets/favicon.ico" />
-    <meta name="description" content="liquidGL is a real-time liquid glass effect for the web. Built with love by NaughtyDuk©">
-    <meta name="keywords" content="liquidGL, webGL, liquid glass, real-time, refraction, video, text, animations, NaughtyDuk©">
-    <meta name="author" content="NaughtyDuk©">
+    <title>Glassworks — Liquid glass for the web, by codedgar</title>
+    <link rel="icon" type="image/svg+xml" href="/assets/glassworks-logo.svg" />
+    <link rel="alternate icon" href="/assets/favicon.ico" />
+    <meta name="description" content="Liquid glass for the web — refracted, glossy panes rendered in WebGL. Snapdom-powered captures, ~4× faster than the original.">
+    <meta name="keywords" content="Glassworks, liquid glass, WebGL, refraction, snapdom, glassmorphism, codedgar">
+    <meta name="author" content="codedgar">
+    <meta name="theme-color" content="#0a0c12">
     <meta name="robots" content="index, follow">
-    <meta name="googlebot" content="index, follow">
-    <meta property="og:image" content="/assets/liquidGL-social.jpg">
-    <meta property="og:title" content="liquidGL - Real-time WebGL Liquid Glass Effect">
-    <meta property="og:description" content="liquidGL is a real-time liquid glass effect for the web. Built with love by NaughtyDuk©">
-    <meta property="og:url" content="https://liquidgl.naughtyduk.com">
+    <meta property="og:image" content="/assets/glassworks-social.jpg">
+    <meta property="og:title" content="Glassworks — Liquid glass for the web">
+    <meta property="og:description" content="Snapdom-powered WebGL refraction, ~4× faster than the original. Maintained by codedgar.">
+    <meta property="og:url" content="https://github.com/codedgar/glassworks">
     <meta property="og:type" content="website">
-    <meta property="og:locale" content="en_GB">
-    <meta property="og:site_name" content="liquidGL">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:site_name" content="Glassworks">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="liquidGL - Real-time WebGL Liquid Glass Effect">
-    <meta name="twitter:description" content="liquidGL is a real-time liquid glass effect for the web. Built with love by NaughtyDuk©">
-    <meta name="twitter:image" content="/assets/liquidGL-social.jpg">
-    <meta name="twitter:url" content="https://liquidgl.naughtyduk.com">
+    <meta name="twitter:title" content="Glassworks — Liquid glass for the web">
+    <meta name="twitter:description" content="Liquid glass for the web. Now ~4× faster.">
+    <meta name="twitter:image" content="/assets/glassworks-social.jpg">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,300..500,0,0" rel="stylesheet">
+
+    <!-- Tailwind CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Geist', '-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"Segoe UI"', 'system-ui', 'Roboto', 'sans-serif'],
+              mono: ['"Geist Mono"', '"SF Mono"', '"Fira Code"', '"Cascadia Code"', 'Consolas', 'monospace'],
+            },
+          },
+        },
+      }
+    </script>
+
     <style>
-      :root {
-        --bg: #f0f0f0;
-        --fg: #333;
+      /* === Type === */
+      .tracking-display { letter-spacing: -0.025em; }
+
+      /* === Hero === */
+      /* The hero uses isolation: isolate so the video sits visibly inside it.
+         Without an explicit stacking context, a z-index: -1 video escapes upward and
+         hides behind the body bg — which is what was happening before. */
+      .hero {
+        position: relative;
+        isolation: isolate;
+        background: #06080d;
       }
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
+      .hero > .hero-video      { z-index: 0; }
+      .hero > .hero-vignette   { z-index: 1; }
+      .hero > .banner-text-container { z-index: 2; }
+
+      /* Hero entrance */
+      @keyframes hero-in {
+        from { opacity: 0; transform: translateY(20px); }
+        to   { opacity: 1; transform: translateY(0); }
       }
-      body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-          Helvetica, Arial, sans-serif;
-        background: var(--bg);
-        color: var(--fg);
-        line-height: 1.5;
-        -webkit-font-smoothing: antialiased;
+      .hero-animate { animation: hero-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) both; }
+      .hero-animate-delay-1 { animation-delay: 0.10s; }
+      .hero-animate-delay-2 { animation-delay: 0.25s; }
+      .hero-animate-delay-3 { animation-delay: 0.40s; }
+      .hero-animate-delay-4 { animation-delay: 0.55s; }
+
+      /* Scroll reveal — opacity stays at 1 so the lens snapshot always
+         captures content. Only the slide-up transform is animated. */
+      .reveal {
+        transform: translateY(20px);
+        transition: transform 0.8s cubic-bezier(0.16,1,0.3,1);
       }
-      /* ===== Single full-viewport lens ===== */
+      .reveal.revealed { transform: none; }
+      .reveal-delay-1 { transition-delay: 80ms; }
+      .reveal-delay-2 { transition-delay: 160ms; }
+      .reveal-delay-3 { transition-delay: 240ms; }
+      .reveal-delay-4 { transition-delay: 320ms; }
+
+      /* === Nav === */
+      #navbar {
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        transition: background-color 0.3s, border-color 0.3s, color 0.3s;
+      }
+      #navbar.nav-light {
+        background-color: rgba(255, 255, 255, 0.78);
+        border-color: rgba(229, 231, 235, 1);
+        color: #111827;
+      }
+      #navbar.nav-dark {
+        background-color: rgba(10, 12, 18, 0.65);
+        border-color: rgba(255, 255, 255, 0.06);
+        color: #e1e4ed;
+      }
+      .nav-link {
+        padding: 4px 10px;
+        border-radius: 6px;
+        transition: background 0.2s, opacity 0.2s, color 0.2s;
+      }
+      #navbar.nav-light .nav-link:hover { background: rgba(0, 0, 0, 0.05); }
+      #navbar.nav-dark  .nav-link:hover { background: rgba(255, 255, 255, 0.08); }
+
+      /* === Terminal === */
+      .terminal { position: relative; border-radius: 0.875rem; overflow: hidden; color-scheme: dark; }
+      .terminal-bar { display: flex; align-items: center; gap: 6px; padding: 12px 16px 0; background: inherit; }
+      .terminal-bar::before, .terminal-bar::after, .terminal-bar span {
+        content: ''; width: 10px; height: 10px; border-radius: 50%;
+      }
+      .terminal-bar::before { background: #ff5f57; }
+      .terminal-bar::after  { background: #febc2e; }
+      .terminal-bar span    { background: #28c840; }
+
+      .copy-btn {
+        position: absolute; top: 10px; right: 12px;
+        padding: 4px 10px; border-radius: 6px;
+        font-size: 0.7rem; font-weight: 500;
+        color: #6b7280; background: transparent;
+        border: 1px solid transparent; cursor: pointer;
+        opacity: 0;
+        transition: opacity 0.15s, background 0.15s, border-color 0.15s, color 0.15s;
+      }
+      .terminal:hover .copy-btn { opacity: 1; }
+      .copy-btn:hover {
+        background: rgba(255,255,255,0.08);
+        border-color: rgba(255,255,255,0.1);
+        color: #e1e4ed;
+      }
+      .copy-btn.copied { color: #86efac; opacity: 1; }
+
+      /* Code coloring */
+      .code-keyword { color: #c084fc; }
+      .code-string  { color: #86efac; }
+      .code-comment { color: #6b7280; font-style: italic; }
+      .code-fn      { color: #93c5fd; }
+      .code-num     { color: #fbbf24; }
+      .code-punct   { color: #9ca3af; }
+      .code-prop    { color: #fda4af; }
+      .code-tag     { color: #f472b6; }
+
+      .cta-arrow { display: inline-block; transition: transform 0.2s ease; }
+      a:hover .cta-arrow, button:hover .cta-arrow { transform: translateX(3px); }
+
+      /* === Functional CSS preserved from old design === */
+      /* The lens — refracted glass shape sitting over the page */
       .shape {
         position: fixed;
         top: 10vw;
@@ -54,7 +163,6 @@
         pointer-events: none;
         z-index: 9999;
       }
-
       @media screen and (max-width: 768px) {
         .shape {
           position: fixed;
@@ -70,11 +178,12 @@
         }
       }
 
-      .content-section {
+      /* Section-bleed: full-viewport sections used by hero + animated callouts */
+      .section-bleed {
+        min-height: 100svh;
         display: flex;
         align-items: center;
         justify-content: center;
-        height: 100svh;
         padding: 0 10vw;
         position: relative;
         overflow: hidden;
@@ -82,847 +191,526 @@
         background-position: center;
       }
 
-      .footer-section {
-        background-color: #111;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        position: relative;
-        padding: 0;
-      }
-
-      .text-section {
-        background-color: #000;
-      }
-
-      .hero-section {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        height: 100svh;
-        gap: 2vw;
-      }
-
-      .video-section {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        height: auto!important;
-        padding: 10vw 0;
-      }
-
-      .banner-text-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 1rem;
-      }
-
+      /* The big refracted-text headline used inside the bleed sections */
       .banner-text {
         width: 100%;
         text-align: center;
-        font-size: 6vw;
+        font-size: 5.2vw;
         font-weight: 800;
         text-transform: uppercase;
         color: #f5f5f5;
         pointer-events: none;
-        line-height: 0.85;
+        line-height: 0.92;
+        letter-spacing: -0.012em;
       }
-
       .banner-text a {
         color: #f5f5f5;
         pointer-events: auto;
         text-decoration: none;
       }
-
-      .banner-text.xl {
-        font-size: 10vw;
-        letter-spacing: -0.025em;
-        text-transform: none;
-        font-weight: 700;
-      }
-
-      .banner-text.sm {
-        font-size: 2vw;
-        letter-spacing: -0.01em;
-      }
-
-      .banner-text.xs {
-        font-size: 1vw;
-        line-height: 1.2;
-        max-width: 26vw;
-      }
-
-      .banner-text.dark {
-        color: #333333;
-      }
-
-      .banner-text-button {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.75rem;
-        background: transparent;
-        color: #f5f5f5;
-        padding: 0.75rem 1.5rem;
-        border: 1px solid #f5f5f5;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 1.125rem;
-        font-weight: 600;
-        text-decoration: none;
-        transition: all 0.2s ease-in-out;
-        margin-top: 1rem;
-      }
-
-      .banner-text-button.dark {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.75rem;
-        background: transparent;
-        color: #333333;
-        padding: 0.75rem 1.5rem;
-        border: 1px solid #333333;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 1.125rem;
-        font-weight: 600;
-        text-decoration: none;
-        transition: all 0.2s ease-in-out;
-        margin-top: 1rem;
-      }
-
-      .banner-text-button:hover {
-        opacity: 0.8;
-      }
-
-      .banner-text-button svg {
-        width: 1.5rem;
-        height: 1.5rem;
-        fill: currentColor;
-      }
+      .banner-text.dark { color: #1f2937; }
+      .split { visibility: hidden; }
 
       @media (max-width: 768px) {
-        .banner-text-button {
-          width: 60vw;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          text-align: center;
-        }
-
-        .banner-text.xs {
-          font-size: 4vw;
-          max-width: 100vw;
-        }
-
-        .banner-text.sm {
-          font-size: 6vw;
-        }
-
-        .banner-text.xl {
-          font-size: 16vw;
-        }
+        .banner-text { font-size: 9vw; }
       }
 
-      .banner-video {
-        width: 100%;
-        height: auto;
-        object-fit: cover;
-        pointer-events: none;
-        border-radius: 2vw;
-        max-width: 60vw;
-      }
-
-      .split {
-        visibility: hidden;
-      }
-
-      .video-hover-area {
-        display: inline-block;
-        position: relative;
-        line-height: 0;
-        cursor: pointer;
-      }
-
-      .section-title-container {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0 0 5vw 0;
-        width: 100%;
-      }
-
-      .section-title-container.footer {
-        padding: 0 0 4vw 0;
-      }
-
-      /* Video Player Styles */
-      .play-icon {
-        position: fixed;
-        width: 10vw;
-        height: 10vw;
-        top: 0;
-        left: 0;
-        pointer-events: none;
-        z-index: 10000;
-        mix-blend-mode: difference;
-      }
-
-      .fullscreen-player {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100svh;
-        background: #111111;
-        z-index: 99999;
-      }
-
-      .fullscreen-player.inactive .custom-controls,
-      .fullscreen-player.inactive .close-btn {
-        opacity: 0;
-      }
-
-      .fullscreen-player video {
-        width: 100vw;
-        height: 100vh;
-        object-fit: cover;
-      }
-
-      @media (max-width: 768px) {
-        .fullscreen-player video {
-          width: 100%;
-          height: 100%;
-          object-fit: contain;
-        }
-      }
-
+      /* Hero video sits inside the hero stacking context (z-index: 0 via .hero rule). */
       .hero-video {
-        z-index: -1;
-      }
-
-      .close-btn {
         position: absolute;
-        top: 3vw;
-        right: 3vw;
-        width: 30px;
-        height: 30px;
-        cursor: pointer;
-        z-index: 100000;
-        mix-blend-mode: difference;
-      }
-
-      .close-btn:before,
-      .close-btn:after {
-        content: "";
-        position: absolute;
-        left: 0;
-        top: 50%;
-        width: 100%;
-        height: 2px;
-        background: #fff;
-        transform-origin: center;
-      }
-
-      .close-btn:before {
-        transform: translateY(-50%) rotate(45deg);
-      }
-
-      .close-btn:after {
-        transform: translateY(-50%) rotate(-45deg);
-      }
-
-      .close-btn:focus-visible {
-        box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.7);
-      }
-
-      /* Custom Controls Container */
-      .custom-controls {
-        position: absolute;
-        bottom: 3vw;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 90%;
-        max-width: 800px;
-        display: flex;
-        align-items: center;
-        gap: 15px;
-        padding: 10px 15px 10px 10px;
-        border-radius: 10px;
-        background: #e8e8e8;
-        transition: opacity 0.4s ease;
-        mix-blend-mode: exclusion;
-      }
-
-      /* Play/Pause Button */
-      .play-pause-btn {
-        background: none;
-        border: none;
-        cursor: pointer;
-        padding: 0;
-        width: 24px;
-        height: 24px;
-        position: relative;
-        outline: none;
-        flex-shrink: 0;
-      }
-
-      /* Play icon (triangle) */
-      .play-pause-btn::before {
-        content: "";
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 0;
-        height: 0;
-        border-top: 8px solid transparent;
-        border-bottom: 8px solid transparent;
-        border-left: 14px solid #333333;
-        transition: all 0.2s ease;
-      }
-
-      /* Pause icon (two bars) */
-      .play-pause-btn.playing::before {
-        border-style: double;
-        border-width: 0 0 0 14px;
-        border-color: #333333;
-        height: 16px;
-        width: 6px;
-        border-left-style: solid;
-        border-right-style: solid;
-        border-left-width: 5px;
-        border-right-width: 5px;
-        transform: translate(-50%, -50%);
-      }
-
-      /* Progress Bar */
-      .progress-bar-container {
-        flex-grow: 1;
-        height: 6px;
-        background: #cdcdcd;
-        border-radius: 3px;
-        cursor: pointer;
-      }
-
-      .progress-bar-fill {
-        width: 0;
-        height: 100%;
-        border-radius: 3px;
-        background: #333333;
-      }
-
-      /* Features Section */
-      .features-section {
-        height: auto !important;
-        padding: 10vw 0;
-        background-color: #f5f5f7;
-        flex-direction: column;
-        gap: 4vw;
-      }
-      .features-card {
-        background: #fafafa;
-        color: #333;
-        border-radius: 2vw;
-        padding: 4vw;
-        width: 100%;
-        max-width: 70vw;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
-        text-align: left;
-      }
-      .features-list {
-        list-style: none;
-        padding: 0;
-        margin: 0 0 2vw 0;
-        width: 100%;
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 1.5rem 2rem;
-      }
-      .feature-item {
-        display: flex;
-        align-items: flex-start;
-        justify-content: center;
-        gap: 1rem;
-        font-size: 1.2rem;
-        font-weight: 500;
-        line-height: 1.4;
-      }
-      .feature-item svg {
-        flex-shrink: 0;
-        width: 1.5rem;
-        height: 1.5rem;
-        fill: #007aff; /* Apple blue */
-        margin-top: 0.1em;
-      }
-
-      .features-button {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.75rem;
-        padding: 0.75rem 1.5rem;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 1.125rem;
-        font-weight: 600;
-        text-decoration: none;
-        transition: all 0.2s ease-in-out;
-        margin-top: 1rem;
-        color: #333;
-        border: 1px solid #333;
-        background: #fff;
-      }
-
-      .features-button:hover {
-        background: #333;
-        color: #fff;
-      }
-
-      .features-button svg {
-        width: 1.5rem;
-        height: 1.5rem;
-        fill: currentColor;
-      }
-
-      /* Responsive */
-      @media (max-width: 1395px) {
-        .features-list {
-          grid-template-columns: repeat(2, 1fr);
-        }
-      }
-
-      @media (max-width: 925px) {
-        .features-card {
-          max-width: 90vw;
-          padding: 6vw;
-        }
-        .features-list {
-          grid-template-columns: 1fr;
-          gap: 1rem;
-        }
-        .feature-item {
-          font-size: 1rem;
-        }
-      }
-
-      /* ===== Preloader ===== */
-      .preloader {
-        position: fixed;
-        top: 0;
-        left: 0;
+        inset: 0;
         width: 100%;
         height: 100%;
-        background-color: #111111;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 100000;
-        color: #f5f5f5;
+        object-fit: cover;
       }
-      .preloader-inner {
+      /* Soft vignette over the video so text stays legible on light frames. */
+      .hero-vignette {
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(180deg,
+            rgba(6,8,13,0.55) 0%,
+            rgba(6,8,13,0.0)  20%,
+            rgba(6,8,13,0.0)  68%,
+            rgba(6,8,13,0.65) 100%),
+          radial-gradient(ellipse at center, transparent 25%, rgba(6,8,13,0.55) 95%);
+        pointer-events: none;
+      }
+
+      /* Material Symbols sizing — match feature-icon scale */
+      .material-symbols-outlined {
+        font-size: 22px;
+        line-height: 1;
+        font-variation-settings: 'wght' 400, 'GRAD' 0, 'opsz' 24, 'FILL' 0;
+      }
+
+      /* Cycling text — instant text swap with a tiny brightness pulse.
+         Critically the element NEVER goes opacity: 0 and never translates
+         out of its box. The lens captures the container at ~10fps during
+         animation; if the cycle word were invisible at any frame the
+         lens would show empty space and create a Christmas-lights blink
+         between values. Brightness-only keeps the text visible the
+         whole time, so every captured frame shows a readable word. */
+      @keyframes cycle-pulse {
+        0%   { filter: brightness(1.6); }
+        100% { filter: brightness(1);   }
+      }
+      .cycle-word {
+        display: inline-block;
+        white-space: nowrap;
         text-align: center;
       }
+      .cycle-word.is-changing {
+        animation: cycle-pulse 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .cycle-word.is-changing { animation: none; }
+      }
+
+      /* Preloader */
+      .preloader {
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background-color: #06080d;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 100001;
+        color: #f5f5f5;
+      }
+      .preloader-inner { text-align: center; }
+      .preloader-mark {
+        width: 44px; height: 44px;
+        margin: 0 auto 1.25rem;
+        opacity: 0.85;
+      }
       .preloader-progress-bar {
-        width: 200px;
-        height: 2px;
-        background-color: rgba(255, 255, 255, 0.2);
-        margin: 0 auto 1rem;
+        width: 200px; height: 2px;
+        background-color: rgba(255,255,255,0.15);
+        margin: 0 auto;
         overflow: hidden;
       }
       .preloader-progress {
-        width: 0%;
-        height: 100%;
+        width: 0%; height: 100%;
         background-color: #f5f5f5;
         transform-origin: left;
       }
-
-      .footer-logo {
-        margin-top: 2vw;
-        width: 100px;
-        height: auto;
+      .preloader-label {
+        margin-top: 1rem;
+        font-family: 'Geist Mono', monospace;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: rgba(255,255,255,0.5);
       }
 
-      .lil-gui {
-        --focus-color: #f5f5f5;
-        --number-color: #f5f5f5;
-      }
+      /* lil-gui — keep accessible but tucked under nav */
+      .lil-gui { --focus-color: #f5f5f5; --number-color: #f5f5f5; }
+      .lil-gui.autoPlace { z-index: 10002; top: 64px !important; }
 
-      .lil-gui.autoPlace {
-        z-index: 10000;
-      }
-
-      /* Global Navigation Styles */
-      .global-nav {
-        position: fixed;
-        top: 1rem;
-        left: 1rem;
-        z-index: 10000;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      }
-
-      .nav-container {
-        background: rgb(9 9 11 / 85%);
-        backdrop-filter: blur(16px);
-        border-radius: 12px;
-        border: 0.5px solid #1e1e20;
-        overflow: hidden;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        box-shadow: 0 4px 16px rgb(0 0 0 / 20%);
-      }
-
-      .nav-toggle {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 12px 16px;
-        background: transparent;
-        border: none;
-        color: #fafafa;
-        cursor: pointer;
-        font-size: 14px;
-        font-weight: 500;
-        width: 100%;
-        text-align: left;
-        transition: all 0.2s ease;
-      }
-
-      .nav-toggle:hover {
-        background: rgb(39 39 42 / 50%);
-      }
-
-      .nav-toggle svg {
-        width: 16px;
-        height: 16px;
-        fill: currentColor;
-        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      }
-
-      .nav-container.expanded .nav-toggle svg {
-        transform: rotate(180deg);
-      }
-
-      .nav-menu {
-        max-height: 0;
-        overflow: hidden;
-        transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      }
-
-      .nav-container.expanded .nav-menu {
-        max-height: 300px;
-      }
-
-      .nav-item {
-        display: block;
-        padding: 10px 16px;
-        color: #a1a1aa;
-        text-decoration: none;
-        font-size: 13px;
-        font-weight: 400;
-        transition: all 0.2s ease;
-        border-top: 0.5px solid #1e1e20;
-        position: relative;
-        cursor: pointer;
-      }
-
-      .nav-item:hover {
-        background: rgb(39 39 42 / 50%);
-        color: #fafafa;
-      }
-
-      .nav-item.active {
-        color: #fafafa;
-        background: rgb(39 39 42 / 30%);
-      }
-
-      .nav-item.active::before {
-        content: '';
-        position: absolute;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        width: 2px;
-        background: #fafafa;
-      }
-
-      @media (max-width: 768px) {
-        .global-nav {
-          top: 0.5rem;
-          left: 0.5rem;
+      /* Reduced motion */
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+          animation-duration: 0.01ms !important;
+          transition-duration: 0.01ms !important;
+          scroll-behavior: auto !important;
         }
-        
-        .nav-toggle {
-          padding: 10px 14px;
-          font-size: 13px;
-        }
-        
-        .nav-item {
-          padding: 8px 14px;
-          font-size: 12px;
-        }
+        .reveal { opacity: 1; transform: none; }
+      }
+      a:focus-visible, button:focus-visible {
+        outline: 2px solid #93c5fd;
+        outline-offset: 2px;
+        border-radius: 4px;
       }
     </style>
   </head>
-  <body>
-    <!-- Global Navigation -->
-    <nav class="global-nav">
-      <div class="nav-container">
-        <button class="nav-toggle" aria-expanded="false" aria-label="Toggle navigation menu">
-          <span>Demos</span>
-          <svg viewBox="0 0 16 16">
-            <path d="M8 11L3 6h10l-5 5z"/>
-          </svg>
-        </button>
-        <div class="nav-menu">
-          <a href="index.html" class="nav-item active">Index</a>
-          <a href="demos/demo-1.html" class="nav-item">D1 - Nav Bar</a>
-          <a href="demos/demo-2.html" class="nav-item">D2 - Bank Card</a>
-          <a href="demos/demo-3.html" class="nav-item">D3 - Animate</a>
-          <a href="demos/demo-4.html" class="nav-item">D4 - Cards</a>
-          <a href="demos/demo-5.html" class="nav-item">D5 - Reveal</a>
-        </div>
-      </div>
-    </nav>
 
+  <body class="bg-white text-gray-900 font-sans antialiased">
+
+    <!-- Preloader -->
     <div class="preloader" data-liquid-ignore>
       <div class="preloader-inner">
+        <img src="/assets/glassworks-logo.svg" alt="Glassworks" class="preloader-mark" />
         <div class="preloader-progress-bar">
           <div class="preloader-progress"></div>
         </div>
+        <div class="preloader-label">// initialising glass</div>
       </div>
     </div>
-    <div class="main-content">
-      <div class="content-section hero-section">
-        <video class="hero-video"
-          autoplay
-          loop
-          muted
-          playsinline
-          style="
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-          "
-        >
+
+    <!-- Navigation -->
+    <nav id="navbar" class="nav-dark fixed top-0 inset-x-0 border-b" style="z-index: 10001;">
+      <div class="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+        <a href="#hero" class="flex items-center gap-2.5 no-underline" style="color:inherit;">
+          <svg width="36" height="28" viewBox="0 0 895 700" fill="currentColor" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Glassworks">
+            <path transform="translate(-90 530) scale(1 -1)" d="M90 30 340 5V-40H735V30L90 110V530H985V-170H170C126 -170 90 -125 90 -70ZM340 205 735 155V400H340Z"/>
+          </svg>
+          <span class="font-semibold text-base tracking-tight">Glassworks</span>
+        </a>
+        <div class="hidden md:flex items-center gap-1 text-sm">
+          <a href="#features"   class="nav-link opacity-70 hover:opacity-100 no-underline" style="color:inherit;">Features</a>
+          <a href="#whats-new"  class="nav-link opacity-70 hover:opacity-100 no-underline" style="color:inherit;">What's new</a>
+          <a href="#install"    class="nav-link opacity-70 hover:opacity-100 no-underline" style="color:inherit;">Install</a>
+          <a href="#demos"      class="nav-link opacity-70 hover:opacity-100 no-underline" style="color:inherit;">Demos</a>
+          <a href="https://github.com/codedgar/glassworks" target="_blank" rel="noopener" class="nav-link opacity-70 hover:opacity-100 no-underline ml-2" style="color:inherit;">GitHub <span aria-hidden="true">↗</span></a>
+        </div>
+        <button id="mobile-menu-btn" class="md:hidden p-2 opacity-80" aria-label="Open menu" aria-expanded="false">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 6h14M3 10h14M3 14h14"/></svg>
+        </button>
+      </div>
+      <div id="mobile-menu" class="hidden md:hidden border-t px-6 pb-4" style="border-color:inherit;">
+        <a href="#features"  class="block py-2 text-sm opacity-80" style="color:inherit;">Features</a>
+        <a href="#whats-new" class="block py-2 text-sm opacity-80" style="color:inherit;">What's new</a>
+        <a href="#install"   class="block py-2 text-sm opacity-80" style="color:inherit;">Install</a>
+        <a href="#demos"     class="block py-2 text-sm opacity-80" style="color:inherit;">Demos</a>
+        <a href="https://github.com/codedgar/glassworks" target="_blank" rel="noopener" class="block py-2 text-sm opacity-80" style="color:inherit;">GitHub ↗</a>
+      </div>
+    </nav>
+
+    <main class="main-content">
+      <!-- HERO -->
+      <section id="hero" class="hero section-bleed text-white">
+        <video class="hero-video" autoplay loop muted playsinline>
           <source src="/assets/loop-opt.mp4" type="video/mp4" />
         </video>
-        <div class="banner-text-container">
-          <div class="banner-text sm">Introducing</div>
-          <div class="banner-text xl">liquidGL</div>
-          <div class="banner-text xs">
-          </br></br>A real-time liquid glass effect for the web. Built with love by <a target="_blank" href="https://naughtyduk.com">NaughtyDuk©</a>
+        <div class="hero-vignette" aria-hidden="true"></div>
+
+        <div class="banner-text-container relative flex flex-col items-center text-center gap-5 max-w-4xl px-4">
+          <div class="hero-animate text-[11px] sm:text-xs uppercase tracking-[0.22em] text-white/60 font-mono">// glassworks · v1</div>
+          <h1 class="hero-animate hero-animate-delay-1 text-6xl sm:text-7xl lg:text-[7.5rem] font-extrabold tracking-display text-white leading-none whitespace-nowrap pb-1">
+            Glassworks
+          </h1>
+          <div class="hero-animate hero-animate-delay-2 text-lg sm:text-xl text-white/80 max-w-xl space-y-1">
+            <p>Liquid glass for <span class="cycle-word text-white font-semibold" data-cycle="browser" aria-live="polite">Chrome</span>.</p>
+            <p>Built on snapdom — ~4×&nbsp;<span class="cycle-word text-white font-semibold" data-cycle="speed" aria-live="polite">faster</span> than the original.</p>
+          </div>
+
+          <div class="hero-animate hero-animate-delay-3 flex flex-col sm:flex-row items-center gap-3 mt-6">
+            <a href="https://github.com/codedgar/glassworks" target="_blank" rel="noopener" class="inline-flex items-center gap-2.5 bg-white text-gray-900 px-7 py-3.5 rounded-2xl text-base font-semibold hover:shadow-[0_0_40px_rgba(255,255,255,0.25)] hover:scale-[1.02] active:scale-[0.98] transition-all">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true">
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+              </svg>
+              <span>View on GitHub</span>
+              <span class="cta-arrow">→</span>
+            </a>
+            <a href="#demos" class="inline-flex items-center gap-2 px-6 py-3.5 rounded-2xl text-base font-medium text-white/90 hover:text-white border border-white/20 hover:border-white/40 transition-colors">
+              See the demos <span class="cta-arrow">→</span>
+            </a>
+          </div>
+
+          <div class="hero-animate hero-animate-delay-4 mt-8 text-[10px] sm:text-xs text-white/45 font-mono uppercase tracking-[0.22em]">
+            ↓ scroll to refract
           </div>
         </div>
-        <div class="banner-text-container">
-          <a href="https://github.com/naughtyduk/liquidgl" target="_blank" class="banner-text-button">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
-            </svg>
-            <span>View on GitHub</span>
-          </a>
-        </div>
-      </div>
-      <div
-        class="content-section video-section"
-      >
-      <div class="section-title-container">
-        <div class="banner-text dark sm">Watch Video</div>
-      </div>
-        <div class="video-hover-area">
-          <video
-            class="banner-video"
-            src="/assets/liquidGlass-Full-Promo25fps-OPT.mp4"
-            autoplay
-            muted
-            loop
-            playsinline
-          ></video>
-        </div>
-      </div>
-      <div
-      class="content-section"
-      style="background-image: url(/assets/liquid-bkg-_0001_Comp-183.webp)"
-    >
-    <div class="banner-text split">
-      LIQUIDGL NOW SUPPORTS REAL TIME REFRACTION FOR VIDEO AND TEXT ANIMATIONS
-    </div>
-    </div>
-      <div
-        class="content-section features-section"
-      >
-      <div class="section-title-container">
-        <div class="banner-text dark sm">Features</div>
-      </div>
-      <div class="features-card">
-        <ul class="features-list">
-          <li class="feature-item">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" />
-            </svg>
-            <span>Real-time Refraction</span>
-          </li>
-          <li class="feature-item">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" />
-            </svg>
-            <span>Adjustable Bevel</span>
-          </li>
-          <li class="feature-item">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" />
-            </svg>
-            <span>Frosted Glass Effect</span>
-          </li>
-          <li class="feature-item">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" />
-            </svg>
-            <span>Dynamic Shadows</span>
-          </li>
-          <li class="feature-item">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" />
-            </svg>
-            <span>Specular Highlights</span>
-          </li>
-          <li class="feature-item">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" />
-            </svg>
-            <span>Interactive Tilt Effect</span>
-          </li>
-          <li class="feature-item">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" />
-            </svg>
-            <span>Magnification Control</span>
-          </li>
-          <li class="feature-item">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" />
-            </svg>
-            <span>GSAP-Ready Animations</span>
-          </li>
-          <li class="feature-item">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" />
-            </svg>
-            <span>Dynamic Element Support</span>
-          </li>
-           <li class="feature-item">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" />
-            </svg>
-            <span>Lightweight & Performant</span>
-          </li>
-           <li class="feature-item">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" />
-            </svg>
-            <span>Seamless Scroll Sync</span>
-          </li>
-           <li class="feature-item">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" />
-            </svg>
-            <span>Auto-Resize Handling</span>
-          </li>
-          <li class="feature-item">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" />
-            </svg>
-            <span>Auto Video Refraction</span>
-          </li>
-           <li class="feature-item">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" />
-            </svg>
-            <span>Animate Lenses</span>
-          </li>
-           <li class="feature-item">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" />
-            </svg>
-            <span>on.init Callback</span>
-          </li>
-        </ul>
-        <div class="banner-text-container">
-          <a href="https://github.com/naughtyduk/liquidgl" target="_blank" class="banner-text-button dark">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
-            </svg>
-            <span>View on GitHub</span>
-          </a>
-        </div>
-      </div>
-    </div>
-      <div
-        class="content-section"
-        style="background-image: url(/assets/liquid-bkg-_0002_Comp-163.webp)"
-      >
-        <div class="banner-text split">
-          THIS TEXT IS ANIMATED WITH GSAP SPLITTEXT AND REFRACTED IN REAL TIME
-          AS YOU SCROLL.
-        </div>
-      </div>
-      <div
-        class="content-section footer-section" 
-      >
-      <div class="banner-text-container">
-        <a href="https://github.com/naughtyduk/liquidgl" target="_blank" class="banner-text-button">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
-          </svg>
-          <span>View on GitHub</span>
-        </a>
-        <img src="/assets/naughtyduk-logo.svg" class="footer-logo" alt="NaughtyDuk©" />
-      </div>
-    </div>
-    </div>
+      </section>
 
-    <!-- Single lens shape -->
+      <!-- ANIMATED REFRACTION CALLOUT 1 -->
+      <section class="section-bleed" style="background-image: url(/assets/liquid-bkg-_0001_Comp-183.webp);">
+        <div class="banner-text split">
+          Glassworks refracts video, text, and animation in real time at ~80ms per capture.
+        </div>
+      </section>
+
+      <!-- FEATURES -->
+      <section id="features" class="bg-white pt-24 pb-28 px-6">
+        <div class="max-w-4xl mx-auto">
+          <div class="text-center mb-14 max-w-xl mx-auto">
+            <p class="text-xs uppercase tracking-[0.22em] text-gray-500 font-mono mb-3 reveal">// features</p>
+            <h2 class="text-3xl sm:text-4xl font-bold text-gray-900 tracking-display reveal">The whole toolkit.</h2>
+            <p class="text-gray-500 mt-4 reveal reveal-delay-1">Real-time refraction, adjustable bevels, frosted blur, specular highlights, tilt. The library does the maths so the page can do the design.</p>
+          </div>
+
+          <ul class="grid grid-cols-1 sm:grid-cols-2 gap-3 reveal reveal-delay-2">
+            <li class="rounded-2xl border border-gray-200 bg-white p-5 flex items-start gap-4 hover:border-gray-400 transition-colors">
+              <div class="w-10 h-10 shrink-0 rounded-xl bg-gray-900 text-white flex items-center justify-center">
+                <span class="material-symbols-outlined">auto_awesome</span>
+              </div>
+              <div>
+                <h3 class="font-semibold text-gray-900 text-[15px] mb-0.5">Real-time refraction</h3>
+                <p class="text-sm text-gray-500 leading-relaxed">Static, video, and animated content — all refracted live in WebGL.</p>
+              </div>
+            </li>
+            <li class="rounded-2xl border border-gray-200 bg-white p-5 flex items-start gap-4 hover:border-gray-400 transition-colors">
+              <div class="w-10 h-10 shrink-0 rounded-xl bg-gray-100 border border-gray-200 text-gray-700 flex items-center justify-center">
+                <span class="material-symbols-outlined">tune</span>
+              </div>
+              <div>
+                <h3 class="font-semibold text-gray-900 text-[15px] mb-0.5">Adjustable bevel</h3>
+                <p class="text-sm text-gray-500 leading-relaxed">Tune depth and width of the rim refraction to taste.</p>
+              </div>
+            </li>
+            <li class="rounded-2xl border border-gray-200 bg-white p-5 flex items-start gap-4 hover:border-gray-400 transition-colors">
+              <div class="w-10 h-10 shrink-0 rounded-xl bg-gray-100 border border-gray-200 text-gray-700 flex items-center justify-center">
+                <span class="material-symbols-outlined">blur_on</span>
+              </div>
+              <div>
+                <h3 class="font-semibold text-gray-900 text-[15px] mb-0.5">Frosted blur</h3>
+                <p class="text-sm text-gray-500 leading-relaxed">Optional blur radius for a privacy-pane diffusion. Zero keeps it crystal clear.</p>
+              </div>
+            </li>
+            <li class="rounded-2xl border border-gray-200 bg-white p-5 flex items-start gap-4 hover:border-gray-400 transition-colors">
+              <div class="w-10 h-10 shrink-0 rounded-xl bg-gray-100 border border-gray-200 text-gray-700 flex items-center justify-center">
+                <span class="material-symbols-outlined">flare</span>
+              </div>
+              <div>
+                <h3 class="font-semibold text-gray-900 text-[15px] mb-0.5">Specular highlights</h3>
+                <p class="text-sm text-gray-500 leading-relaxed">Animated light highlights that move with time. Off if you want flat.</p>
+              </div>
+            </li>
+            <li class="rounded-2xl border border-gray-200 bg-white p-5 flex items-start gap-4 hover:border-gray-400 transition-colors">
+              <div class="w-10 h-10 shrink-0 rounded-xl bg-gray-100 border border-gray-200 text-gray-700 flex items-center justify-center">
+                <span class="material-symbols-outlined">view_in_ar</span>
+              </div>
+              <div>
+                <h3 class="font-semibold text-gray-900 text-[15px] mb-0.5">Interactive tilt</h3>
+                <p class="text-sm text-gray-500 leading-relaxed">Subtle 3D parallax on cursor movement. Tunable depth.</p>
+              </div>
+            </li>
+            <li class="rounded-2xl border border-gray-200 bg-white p-5 flex items-start gap-4 hover:border-gray-400 transition-colors">
+              <div class="w-10 h-10 shrink-0 rounded-xl bg-gray-100 border border-gray-200 text-gray-700 flex items-center justify-center">
+                <span class="material-symbols-outlined">zoom_in</span>
+              </div>
+              <div>
+                <h3 class="font-semibold text-gray-900 text-[15px] mb-0.5">Magnification</h3>
+                <p class="text-sm text-gray-500 leading-relaxed">Zoom lens contents from 0.001× through 3×. Real lens, real maths.</p>
+              </div>
+            </li>
+            <li class="rounded-2xl border border-gray-200 bg-white p-5 flex items-start gap-4 hover:border-gray-400 transition-colors">
+              <div class="w-10 h-10 shrink-0 rounded-xl bg-gray-100 border border-gray-200 text-gray-700 flex items-center justify-center">
+                <span class="material-symbols-outlined">gradient</span>
+              </div>
+              <div>
+                <h3 class="font-semibold text-gray-900 text-[15px] mb-0.5">Soft drop-shadow</h3>
+                <p class="text-sm text-gray-500 leading-relaxed">A grounded shadow underneath. Cheap on the GPU.</p>
+              </div>
+            </li>
+            <li class="rounded-2xl border border-gray-200 bg-white p-5 flex items-start gap-4 hover:border-gray-400 transition-colors">
+              <div class="w-10 h-10 shrink-0 rounded-xl bg-gray-100 border border-gray-200 text-gray-700 flex items-center justify-center">
+                <span class="material-symbols-outlined">animation</span>
+              </div>
+              <div>
+                <h3 class="font-semibold text-gray-900 text-[15px] mb-0.5">Animate lenses</h3>
+                <p class="text-sm text-gray-500 leading-relaxed">Animate transform, border-radius, opacity at 60fps with GSAP.</p>
+              </div>
+            </li>
+            <li class="rounded-2xl border border-gray-200 bg-white p-5 flex items-start gap-4 hover:border-gray-400 transition-colors">
+              <div class="w-10 h-10 shrink-0 rounded-xl bg-gray-100 border border-gray-200 text-gray-700 flex items-center justify-center">
+                <span class="material-symbols-outlined">movie</span>
+              </div>
+              <div>
+                <h3 class="font-semibold text-gray-900 text-[15px] mb-0.5">Auto video refract</h3>
+                <p class="text-sm text-gray-500 leading-relaxed">Videos in the snapshot are detected and re-captured per frame.</p>
+              </div>
+            </li>
+            <li class="rounded-2xl border border-gray-200 bg-white p-5 flex items-start gap-4 hover:border-gray-400 transition-colors">
+              <div class="w-10 h-10 shrink-0 rounded-xl bg-gray-100 border border-gray-200 text-gray-700 flex items-center justify-center">
+                <span class="material-symbols-outlined">swap_vert</span>
+              </div>
+              <div>
+                <h3 class="font-semibold text-gray-900 text-[15px] mb-0.5">Scroll sync</h3>
+                <p class="text-sm text-gray-500 leading-relaxed">Drop-in support for Lenis, Locomotive Scroll, and GSAP ScrollTrigger.</p>
+              </div>
+            </li>
+            <li class="rounded-2xl border border-gray-200 bg-white p-5 flex items-start gap-4 hover:border-gray-400 transition-colors">
+              <div class="w-10 h-10 shrink-0 rounded-xl bg-gray-100 border border-gray-200 text-gray-700 flex items-center justify-center">
+                <span class="material-symbols-outlined">inventory_2</span>
+              </div>
+              <div>
+                <h3 class="font-semibold text-gray-900 text-[15px] mb-0.5">Lightweight bundle</h3>
+                <p class="text-sm text-gray-500 leading-relaxed">~50KB by default. html2canvas only loads if your page actually needs it.</p>
+              </div>
+            </li>
+            <li class="rounded-2xl border border-gray-200 bg-white p-5 flex items-start gap-4 hover:border-gray-400 transition-colors">
+              <div class="w-10 h-10 shrink-0 rounded-xl bg-gray-100 border border-gray-200 text-gray-700 flex items-center justify-center">
+                <span class="material-symbols-outlined">bolt</span>
+              </div>
+              <div>
+                <h3 class="font-semibold text-gray-900 text-[15px] mb-0.5"><code class="font-mono">on.init</code> callback</h3>
+                <p class="text-sm text-gray-500 leading-relaxed">Hook the moment the first frame paints. Chain reveal animations from there.</p>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- WHAT'S NEW -->
+      <section id="whats-new" class="bg-gray-50 py-28 px-6">
+        <div class="max-w-4xl mx-auto">
+          <div class="text-center mb-16 max-w-xl mx-auto">
+            <p class="text-xs uppercase tracking-[0.22em] text-gray-500 font-mono mb-3 reveal">// what's new</p>
+            <h2 class="text-3xl sm:text-4xl font-bold text-gray-900 tracking-display reveal">Rebuilt on snapdom.</h2>
+            <p class="text-gray-500 mt-4 reveal reveal-delay-1">Captures used to be the slow part. Glassworks ships <a class="underline underline-offset-4 decoration-gray-300 hover:decoration-gray-700" href="https://github.com/zumerlab/snapdom" target="_blank" rel="noopener">snapdom</a> as the default backend with an html2canvas hybrid fallback. On a typical page, captures drop from ~300ms to ~80ms.</p>
+          </div>
+
+          <div class="grid md:grid-cols-3 gap-4 reveal reveal-delay-2">
+            <article class="rounded-2xl bg-white border border-gray-200 p-6">
+              <div class="text-3xl font-extrabold tracking-display text-gray-900 mb-2">~4×</div>
+              <h3 class="font-semibold text-gray-900 mb-1.5">Faster captures</h3>
+              <p class="text-sm text-gray-500 leading-relaxed">snapdom's foreignObject pipeline does in ~80ms what html2canvas does in ~300ms.</p>
+            </article>
+            <article class="rounded-2xl bg-white border border-gray-200 p-6">
+              <div class="text-3xl font-extrabold tracking-display text-gray-900 mb-2">~50<span class="text-gray-400">KB</span></div>
+              <h3 class="font-semibold text-gray-900 mb-1.5">Lighter by default</h3>
+              <p class="text-sm text-gray-500 leading-relaxed">html2canvas only loads if your page needs it — when an absolute overlay is detected on the snapshot target.</p>
+            </article>
+            <article class="rounded-2xl bg-white border border-gray-200 p-6">
+              <div class="text-3xl font-extrabold tracking-display text-gray-900 mb-2">0<span class="text-gray-400">px</span></div>
+              <h3 class="font-semibold text-gray-900 mb-1.5">Drift on long pages</h3>
+              <p class="text-sm text-gray-500 leading-relaxed">Patched the upstream bug where multiple in-flow lenses collapsed the snapshot. Lenses stay perfectly aligned, even far down the page.</p>
+            </article>
+          </div>
+
+          <div class="mt-4 grid md:grid-cols-2 gap-4 reveal reveal-delay-3">
+            <article class="rounded-2xl bg-white border border-gray-200 p-6">
+              <h3 class="font-semibold text-gray-900 mb-2">Drop-in API.</h3>
+              <p class="text-sm text-gray-500 leading-relaxed">Same <code class="font-mono text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded">liquidGL({...})</code> call, same options, same behaviour. Existing code keeps working — just point the script tag at the new build.</p>
+            </article>
+            <article class="rounded-2xl bg-white border border-gray-200 p-6">
+              <h3 class="font-semibold text-gray-900 mb-2">Legacy build still ships.</h3>
+              <p class="text-sm text-gray-500 leading-relaxed">Want the html2canvas-only pipeline? Pass <code class="font-mono text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded">engine: "html2canvas"</code> or load <code class="font-mono text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded">liquidGL-legacy.js</code>. Drift fix applied either way.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- INSTALL -->
+      <section id="install" class="bg-[#0a0c12] py-28 px-6 text-white">
+        <div class="max-w-3xl mx-auto">
+          <div class="text-center mb-12 max-w-lg mx-auto">
+            <p class="text-xs uppercase tracking-[0.22em] text-white/50 font-mono mb-3 reveal">// quick start</p>
+            <h2 class="text-3xl sm:text-4xl font-bold tracking-display reveal">Drop it in.</h2>
+            <p class="text-white/60 mt-4 reveal reveal-delay-1">Two scripts, one selector, a few options. That's it.</p>
+          </div>
+
+          <div class="terminal bg-[#0d1018] border border-white/[0.08] reveal reveal-delay-2">
+            <div class="terminal-bar"><span></span></div>
+            <button class="copy-btn" data-copy-target="install-snippet" type="button">Copy</button>
+<pre class="px-6 pt-4 pb-6 overflow-x-auto text-sm leading-relaxed font-mono"><code id="install-snippet"><span class="code-comment">&lt;!-- 1. snapdom: capture backend --&gt;</span>
+<span class="code-punct">&lt;</span><span class="code-tag">script</span> <span class="code-prop">src</span>=<span class="code-string">"https://cdn.jsdelivr.net/npm/@zumer/snapdom/dist/snapdom.js"</span> defer<span class="code-punct">&gt;&lt;/</span><span class="code-tag">script</span><span class="code-punct">&gt;</span>
+
+<span class="code-comment">&lt;!-- 2. glassworks --&gt;</span>
+<span class="code-punct">&lt;</span><span class="code-tag">script</span> <span class="code-prop">src</span>=<span class="code-string">"/scripts/liquidGL.js"</span> defer<span class="code-punct">&gt;&lt;/</span><span class="code-tag">script</span><span class="code-punct">&gt;</span>
+
+<span class="code-comment">// initialise after DOMContentLoaded</span>
+<span class="code-keyword">const</span> glass <span class="code-punct">=</span> <span class="code-fn">liquidGL</span><span class="code-punct">({</span>
+  <span class="code-prop">target</span><span class="code-punct">:</span> <span class="code-string">".liquidGL"</span><span class="code-punct">,</span>
+  <span class="code-prop">refraction</span><span class="code-punct">:</span> <span class="code-num">0.026</span><span class="code-punct">,</span>
+  <span class="code-prop">bevelDepth</span><span class="code-punct">:</span> <span class="code-num">0.119</span><span class="code-punct">,</span>
+  <span class="code-prop">bevelWidth</span><span class="code-punct">:</span> <span class="code-num">0.057</span><span class="code-punct">,</span>
+  <span class="code-prop">specular</span><span class="code-punct">:</span> <span class="code-keyword">true</span><span class="code-punct">,</span>
+  <span class="code-prop">shadow</span><span class="code-punct">:</span> <span class="code-keyword">true</span><span class="code-punct">,</span>
+<span class="code-punct">});</span></code></pre>
+          </div>
+
+          <p class="text-center text-sm text-white/40 mt-8 reveal reveal-delay-3">
+            Full options, presets, and FAQ in the
+            <a href="https://github.com/codedgar/glassworks#readme" target="_blank" rel="noopener" class="text-white/85 hover:text-white underline underline-offset-4">README <span class="cta-arrow">→</span></a>
+          </p>
+        </div>
+      </section>
+
+      <!-- DEMOS -->
+      <section id="demos" class="bg-white py-28 px-6">
+        <div class="max-w-4xl mx-auto">
+          <div class="text-center mb-14 max-w-lg mx-auto">
+            <p class="text-xs uppercase tracking-[0.22em] text-gray-500 font-mono mb-3 reveal">// demos</p>
+            <h2 class="text-3xl sm:text-4xl font-bold text-gray-900 tracking-display reveal">Five ways to see it.</h2>
+            <p class="text-gray-500 mt-4 reveal reveal-delay-1">Each demo is a self-contained page. View source if you want to copy the setup.</p>
+          </div>
+
+          <div class="grid sm:grid-cols-2 gap-4 reveal reveal-delay-2">
+            <a href="/demos/demo-1.html" class="group rounded-2xl border border-gray-200 bg-white p-6 hover:border-gray-900 hover:shadow-md transition-all">
+              <div class="font-mono text-xs text-gray-400 mb-3">D1</div>
+              <h3 class="font-semibold text-gray-900 mb-1.5">Nav bar</h3>
+              <p class="text-sm text-gray-500">A sticky nav backed by a refracting lens. The classic app-bar pattern, refracting whatever scrolls past.</p>
+              <div class="mt-4 text-sm font-medium text-gray-900">View demo <span class="cta-arrow">→</span></div>
+            </a>
+            <a href="/demos/demo-2.html" class="group rounded-2xl border border-gray-200 bg-white p-6 hover:border-gray-900 hover:shadow-md transition-all">
+              <div class="font-mono text-xs text-gray-400 mb-3">D2</div>
+              <h3 class="font-semibold text-gray-900 mb-1.5">Bank card</h3>
+              <p class="text-sm text-gray-500">A frosted credit-card surface over a moving background. Perfect for fintech UIs.</p>
+              <div class="mt-4 text-sm font-medium text-gray-900">View demo <span class="cta-arrow">→</span></div>
+            </a>
+            <a href="/demos/demo-3.html" class="group rounded-2xl border border-gray-200 bg-white p-6 hover:border-gray-900 hover:shadow-md transition-all">
+              <div class="font-mono text-xs text-gray-400 mb-3">D3</div>
+              <h3 class="font-semibold text-gray-900 mb-1.5">Animated lenses</h3>
+              <p class="text-sm text-gray-500">Lens transforms animated with GSAP. Border-radius, scale, position — all live.</p>
+              <div class="mt-4 text-sm font-medium text-gray-900">View demo <span class="cta-arrow">→</span></div>
+            </a>
+            <a href="/demos/demo-4.html" class="group rounded-2xl border border-gray-200 bg-white p-6 hover:border-gray-900 hover:shadow-md transition-all">
+              <div class="font-mono text-xs text-gray-400 mb-3">D4</div>
+              <h3 class="font-semibold text-gray-900 mb-1.5">Multiple lenses</h3>
+              <p class="text-sm text-gray-500">Many cards, one shared canvas. Built so you don't blow the WebGL context budget.</p>
+              <div class="mt-4 text-sm font-medium text-gray-900">View demo <span class="cta-arrow">→</span></div>
+            </a>
+            <a href="/demos/demo-5.html" class="group rounded-2xl border border-gray-200 bg-white p-6 hover:border-gray-900 hover:shadow-md transition-all">
+              <div class="font-mono text-xs text-gray-400 mb-3">D5</div>
+              <h3 class="font-semibold text-gray-900 mb-1.5">Reveal &amp; morph</h3>
+              <p class="text-sm text-gray-500">Circular morphs that reveal scenes as the lens transforms.</p>
+              <div class="mt-4 text-sm font-medium text-gray-900">View demo <span class="cta-arrow">→</span></div>
+            </a>
+            <a href="https://github.com/codedgar/glassworks#readme" target="_blank" rel="noopener" class="group rounded-2xl border border-dashed border-gray-300 bg-gray-50/50 p-6 hover:border-gray-900 hover:bg-white transition-all">
+              <div class="font-mono text-xs text-gray-400 mb-3">README</div>
+              <h3 class="font-semibold text-gray-900 mb-1.5">Full docs &amp; presets</h3>
+              <p class="text-sm text-gray-500">Every option, five copy-paste presets, and the FAQ. The reference doc.</p>
+              <div class="mt-4 text-sm font-medium text-gray-900">Open README <span class="cta-arrow">↗</span></div>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- ANIMATED REFRACTION CALLOUT 2 -->
+      <section class="section-bleed" style="background-image: url(/assets/liquid-bkg-_0002_Comp-163.webp);">
+        <div class="banner-text split">
+          This text is animated with GSAP SplitText and refracted in real time as you scroll.
+        </div>
+      </section>
+
+      <!-- FOOTER -->
+      <footer class="bg-[#06080d] text-white px-6 flex items-center justify-center" style="min-height: 90svh;">
+        <div class="max-w-5xl mx-auto flex flex-col items-center text-center gap-12 py-24">
+          <div class="flex flex-col items-center gap-6">
+            <img src="/assets/codedgar-logo.svg" alt="codedgar" class="w-14 h-14 rounded-xl" />
+            <div class="text-2xl font-semibold tracking-display">Glassworks</div>
+            <p class="text-white/55 max-w-md text-sm leading-relaxed">
+              Built and maintained by
+              <a href="https://codedgar.com" target="_blank" rel="noopener" class="text-white/85 hover:text-white underline underline-offset-4">codedgar</a>.
+              Forked from
+              <a href="https://github.com/naughtyduk/liquidGL" target="_blank" rel="noopener" class="text-white/85 hover:text-white underline underline-offset-4">liquidGL</a>
+              by NaughtyDuk©. Original WebGL renderer credit theirs. MIT licensed.
+            </p>
+          </div>
+
+          <a href="https://github.com/codedgar/glassworks" target="_blank" rel="noopener" class="inline-flex items-center gap-2.5 bg-white text-gray-900 px-7 py-3.5 rounded-2xl text-sm font-semibold hover:shadow-[0_0_40px_rgba(255,255,255,0.2)] hover:scale-[1.02] active:scale-[0.98] transition-all">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true">
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+            </svg>
+            <span>View on GitHub</span>
+            <span class="cta-arrow">→</span>
+          </a>
+
+          <div class="text-[10px] text-white/30 font-mono uppercase tracking-[0.22em] mt-4">
+            // mit © codedgar · 2026
+          </div>
+        </div>
+      </footer>
+    </main>
+
+    <!-- Lens shape -->
     <div class="shape liquidGL"></div>
 
-    <!-- Fullscreen Video Player -->
-    <div class="fullscreen-player">
-      <div
-        class="close-btn"
-        tabindex="0"
-        role="button"
-        aria-label="Close video player"
-      ></div>
-      <video src="/assets/liquidGlass-Full-Promo25fps-OPT.mp4"></video>
-      <div class="custom-controls">
-        <button
-          class="play-pause-btn"
-          role="button"
-          aria-label="Play video"
-        ></button>
-        <div class="progress-bar-container">
-          <div class="progress-bar-fill"></div>
-        </div>
-      </div>
-    </div>
-    <img src="/assets/play-icon.svg" class="play-icon" alt="Play" />
-    
     <!-- Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js" integrity="sha384-HOvlOYPIs/zjoIkWUGXkVmXsjr8GuZLV+Q+rcPwmJOVZVpvTSXQChiN4t9Euv9Vc" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollTrigger.min.js" integrity="sha384-P8VzCVnT9NBUkMrpcIZrJbA7EBjJvh/fJS6PmP+4nLIM284DtsImIv8D0fFjIkeh" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/SplitText.min.js" integrity="sha384-xb96EMJeax+NLXMC88ZBa1xAeAW+kn+horHh/zFlbMLG2UPWhMJJSlv7fi57hS+Q" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/lil-gui@0.19.1/dist/lil-gui.umd.min.js" integrity="sha384-2eNPNc7Cms+nVcpmQPotBpthLWCwjAGbkp0Y+3MUQqwPbmTpMFmbh2a230Gkns0x" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@studio-freight/lenis@1.0.42/dist/lenis.min.js" integrity="sha384-li4UtcFCH6QeUqR4JyV58/VgTprMuz9aauj+oWtew7V4Y7ZVjnvz5px9Y3UCG0Ea" crossorigin="anonymous"></script>
-    
-    <!-- Scripts -->
+
+    <!-- Capture lib + Glassworks -->
     <script>
-      /* Capture-lib selection: snapdom is the default (faster, lazy-loads
-         html2canvas only when needed for absolute-positioned overlays).
-         ?ver=html2canvas opts back to the legacy pipeline. */
+      /* snapdom is the default (faster, lazy-loads html2canvas only when needed
+         for absolute-positioned overlays). ?ver=html2canvas opts back to legacy. */
       (function () {
         var useLegacy =
           new URLSearchParams(location.search).get("ver") === "html2canvas";
@@ -938,15 +726,16 @@
         );
       })();
     </script>
+
+    <!-- Optional perf HUD: ?perf=1 -->
     <script>
-      /* Perf HUD — visible whenever ?perf=1 is set, regardless of capture lib. */
       (function () {
         if (new URLSearchParams(location.search).get("perf") !== "1") return;
 
         var hud = document.createElement("div");
         hud.id = "liquidgl-perf-hud";
         hud.style.cssText =
-          "position:fixed;top:12px;right:12px;z-index:99999;" +
+          "position:fixed;top:64px;right:12px;z-index:99999;" +
           "background:rgba(0,0,0,0.78);color:#fff;padding:8px 12px;" +
           "border-radius:6px;font-size:11px;font-weight:600;" +
           "font-family:ui-monospace,SFMono-Regular,Menlo,monospace;" +
@@ -1012,50 +801,153 @@
           }
         }
 
-        // The capture lib is loaded synchronously via document.write above,
-        // so it's already on window by the time this runs in script order.
         tryInstrument();
       })();
     </script>
+
+    <!-- Glassworks init + page wiring -->
     <script>
-      /* OPTIONAL - Register GSAP SplitText */
       gsap.registerPlugin(SplitText);
 
-      /* OPTIONAL - glassEffect variable declared globally so it can be 
-      accessed by the custom controls */
       let glassEffect;
 
-      /* RECOMMENDED - DOMContentLoaded Event */
       document.addEventListener("DOMContentLoaded", () => {
-        /* Global Navigation Setup */
-        const navToggle = document.querySelector('.nav-toggle');
-        const navContainer = document.querySelector('.nav-container');
-        
-        if (navToggle && navContainer) {
-          navToggle.addEventListener('click', () => {
-            const isExpanded = navContainer.classList.contains('expanded');
-            navContainer.classList.toggle('expanded');
-            navToggle.setAttribute('aria-expanded', !isExpanded);
+        /* Mobile menu toggle */
+        const menuBtn = document.getElementById("mobile-menu-btn");
+        const mobileMenu = document.getElementById("mobile-menu");
+        if (menuBtn && mobileMenu) {
+          menuBtn.addEventListener("click", () => {
+            const open = !mobileMenu.classList.contains("hidden");
+            mobileMenu.classList.toggle("hidden");
+            menuBtn.setAttribute("aria-expanded", String(!open));
           });
-
-          // Close navigation when clicking outside
-          document.addEventListener('click', (e) => {
-            if (!navContainer.contains(e.target)) {
-              navContainer.classList.remove('expanded');
-              navToggle.setAttribute('aria-expanded', 'false');
-            }
-          });
-
-          // Close navigation when pressing Escape
-          document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && navContainer.classList.contains('expanded')) {
-              navContainer.classList.remove('expanded');
-              navToggle.setAttribute('aria-expanded', 'false');
-            }
-          });
+          // Close on link click
+          mobileMenu.querySelectorAll("a").forEach((a) =>
+            a.addEventListener("click", () => {
+              mobileMenu.classList.add("hidden");
+              menuBtn.setAttribute("aria-expanded", "false");
+            })
+          );
         }
 
-        /* OPTIONAL - Preloader */
+        /* Hero cycling text — browsers + faster/better/stronger.
+           Two-phase animation: outgoing word leaves (up + blur out), then incoming
+           word arrives (up from below + blur in). Min-width is locked to the
+           widest word so the rest of the sentence doesn't shift each tick. */
+        const CYCLES = {
+          browser: ["Chrome", "Safari", "Firefox", "Edge", "Brave", "any browser"],
+          speed:   ["faster", "better", "stronger"],
+        };
+        const CYCLE_INTERVALS = { browser: 2400, speed: 1900 };
+
+        /* Whether to lock min-width to the widest word in the cycle.
+           Locked = no reflow on tick, but shorter words have visible
+           padding on each side. We lock the "speed" cycle because its
+           words are close in length (faster/better/stronger — 6–8
+           chars, only ~8px of padding per side on the short ones), and
+           leave the "browser" cycle free-reflowing because Edge (4) vs
+           "any browser" (11) would otherwise leave a huge frame around
+           short words. */
+        const LOCK_WIDTH = { speed: true, browser: false };
+
+        document.querySelectorAll("[data-cycle]").forEach((el) => {
+          const key = el.getAttribute("data-cycle");
+          const words = CYCLES[key];
+          if (!words || !words.length) return;
+
+          if (LOCK_WIDTH[key]) {
+            const measure = document.createElement("span");
+            measure.style.cssText =
+              "position:absolute;visibility:hidden;pointer-events:none;white-space:nowrap;";
+            el.parentNode.insertBefore(measure, el);
+            const cs = window.getComputedStyle(el);
+            measure.style.font = cs.font;
+            measure.style.letterSpacing = cs.letterSpacing;
+            measure.style.fontWeight = cs.fontWeight;
+            let maxW = 0;
+            for (const w of words) {
+              measure.textContent = w;
+              maxW = Math.max(maxW, measure.getBoundingClientRect().width);
+            }
+            measure.remove();
+            el.style.minWidth = Math.ceil(maxW + 2) + "px";
+          }
+
+          let i = 0;
+          el.textContent = words[0];
+
+          /* Instant text swap + a brightness pulse for the brief moment.
+             No opacity changes, no translateY — keeps the word visible
+             in every frame the lens captures, so the refraction shows
+             clean text-only transitions without empty-space flicker. */
+          const tick = () => {
+            i = (i + 1) % words.length;
+            el.textContent = words[i];
+            el.classList.remove("is-changing");
+            void el.offsetWidth;
+            el.classList.add("is-changing");
+          };
+
+          setInterval(tick, CYCLE_INTERVALS[key] || 1700);
+        });
+
+        /* Navbar light/dark switch over hero vs content */
+        const navbar = document.getElementById("navbar");
+        const hero = document.getElementById("hero");
+        if (navbar && hero && "IntersectionObserver" in window) {
+          const heroIO = new IntersectionObserver(
+            (entries) => {
+              for (const entry of entries) {
+                const overHero = entry.isIntersecting && entry.intersectionRatio > 0.4;
+                navbar.classList.toggle("nav-dark", overHero);
+                navbar.classList.toggle("nav-light", !overHero);
+              }
+            },
+            { threshold: [0, 0.4, 0.8] }
+          );
+          heroIO.observe(hero);
+        }
+
+        /* Reveal-on-scroll */
+        if ("IntersectionObserver" in window) {
+          const revealIO = new IntersectionObserver(
+            (entries) => {
+              for (const entry of entries) {
+                if (entry.isIntersecting) {
+                  entry.target.classList.add("revealed");
+                  revealIO.unobserve(entry.target);
+                }
+              }
+            },
+            { threshold: 0.12, rootMargin: "0px 0px -80px 0px" }
+          );
+          document.querySelectorAll(".reveal").forEach((el) => revealIO.observe(el));
+        } else {
+          document.querySelectorAll(".reveal").forEach((el) => el.classList.add("revealed"));
+        }
+
+        /* Copy button for terminal block */
+        document.querySelectorAll(".copy-btn").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const id = btn.getAttribute("data-copy-target");
+            const node = id && document.getElementById(id);
+            if (!node) return;
+            try {
+              await navigator.clipboard.writeText(node.innerText);
+              const original = btn.textContent;
+              btn.textContent = "Copied";
+              btn.classList.add("copied");
+              setTimeout(() => {
+                btn.textContent = original;
+                btn.classList.remove("copied");
+              }, 1400);
+            } catch (e) {
+              /* clipboard denied — fail silently */
+            }
+          });
+        });
+
+        /* Preloader timeline */
         const preloader = document.querySelector(".preloader");
         const preloaderProgress = document.querySelector(".preloader-progress");
 
@@ -1073,24 +965,21 @@
           });
         });
 
-        /* RECOMMENDED - Wait for fonts to be loaded */
         const fontsReady =
           document.fonts && document.fonts.ready
             ? document.fonts.ready
             : Promise.resolve();
 
         fontsReady.then(() => {
-          /* 1. OPTIONAL - PREPARE ANIMATIONS BEFORE INITIALISING LIQUIDGL */
+          /* Set up SplitText on the .split bleed callouts before liquidGL captures */
           gsap.set(".split", { visibility: "visible" });
           const allSplitLines = [];
-
           gsap.utils.toArray(".split").forEach((splitEl) => {
             const split = SplitText.create(splitEl, {
               type: "lines",
               linesClass: "line",
               mask: "lines",
             });
-
             gsap.from(split.lines, {
               scrollTrigger: {
                 trigger: splitEl,
@@ -1102,15 +991,12 @@
               stagger: 0.1,
               ease: "expo.out",
             });
-
             allSplitLines.push(...split.lines);
           });
 
-          /* 2. REQUIRED - INITIALISE LIQUIDGL */
-          /* Responsive refraction value */
-          const getRefractionValue = () => {
-            return window.innerWidth <= 767 ? 0.011 : 0.026;
-          };
+          /* Initialise the lens */
+          const getRefractionValue = () =>
+            window.innerWidth <= 767 ? 0.011 : 0.026;
 
           glassEffect = liquidGL({
             target: ".liquidGL",
@@ -1128,10 +1014,6 @@
             magnify: 1,
             on: {
               init: function (intro) {
-                /* OPTIONAL - GSAP ANIMATION OF TARGET ELEMENT */
-                /* You can animate the target element to create a more dynamic effect,
-                or use the on.init callback to run any code after liquidGL is initialised. */
-                /* Preloader Animation */
                 loadingDone.then(() => {
                   gsap.to(preloader, {
                     yPercent: -100,
@@ -1141,7 +1023,6 @@
                       preloader.style.display = "none";
                     },
                   });
-                  /* Target Animation */
                   gsap.to(intro.el, {
                     scaleX: 1,
                     duration: 1.2,
@@ -1153,29 +1034,29 @@
             },
           });
 
-          /* Handle responsive refraction on window resize */
-          window.addEventListener('resize', () => {
+          window.addEventListener("resize", () => {
             const newRefraction = getRefractionValue();
             if (glassEffect && glassEffect.options) {
               glassEffect.options.refraction = newRefraction;
             }
           });
 
-          /* 3. REQUIRED FOR DYNAMIC ELEMENTS - REGISTER DYNAMIC ELEMENTS */
-          /* You need to register any elements that intersect the target which
-          you want to be refracted. For example animated content, text, etc. 
-          You do not need to register videos, they are automatically registered. */
+          /* Register dynamic content for refraction.
+             The hero container is captured via the dynamic path so the
+             entrance animation + cycling words update in the lens.
+             We deliberately do NOT also register the cycle spans —
+             double-registering them caused two captures (the container
+             one and the span one) to fight over the same pixel area
+             and flicker in the lens. */
           liquidGL.registerDynamic(allSplitLines);
           liquidGL.registerDynamic(".banner-text-container");
 
-          console.log("liquidGL ready!", glassEffect);
+          console.log("Glassworks ready!", glassEffect);
 
-          /* 4. OPTIONAL - UNIVERSAL SCROLL/ANIMATION SYNC */
-          /* Works automatically with Lenis, Locomotive Scroll, GSAP, GSAP ScrollTrigger.
-          Recommended use is to include Lenis, GSAP and GSAP ScrollTrigger libraries. */
+          /* Universal scroll/animation sync */
           liquidGL.syncWith();
 
-          /* DEMO ONLY - GUI CONTROLS, NOT REQUIRED FOR LIBRARY USAGE */
+          /* Demo-only: GUI controls. Closed by default. */
           const lensArr = Array.isArray(glassEffect)
             ? glassEffect
             : [glassEffect];
@@ -1183,7 +1064,7 @@
 
           if (first) {
             const gui = new lil.GUI();
-            const folder = gui.addFolder("liquidGL Effect");
+            const folder = gui.addFolder("Glassworks");
 
             const sync = (key, value) => {
               lensArr.forEach((ln) => {
@@ -1194,202 +1075,21 @@
               });
             };
 
-            folder
-              .add(first.options, "refraction", 0, 0.1, 0.001)
-              .onChange((v) => sync("refraction", v));
-            folder
-              .add(first.options, "bevelDepth", 0, 0.2, 0.001)
-              .onChange((v) => sync("bevelDepth", v));
-            folder
-              .add(first.options, "bevelWidth", 0, 0.5, 0.001)
-              .onChange((v) => sync("bevelWidth", v));
-            folder
-              .add(first.options, "frost", 0, 10, 0.1)
-              .onChange((v) => sync("frost", v));
-            folder
-              .add(first.options, "magnify", 1, 5, 0.1)
-              .onChange((v) => sync("magnify", v));
-            folder
-              .add(first.options, "shadow")
-              .onChange((v) => sync("shadow", v));
-            folder
-              .add(first.options, "specular")
-              .onChange((v) => sync("specular", v));
-            folder
-              .add(first.options, "tilt")
-              .onChange((v) => sync("tilt", v));
-            folder
-              .add(first.options, "tiltFactor", 0, 25, 0.1)
-              .onChange((v) => sync("tiltFactor", v));
-            folder
-              .add(first.options, "reveal", ["none", "fade"])
-              .onChange((v) => sync("reveal", v));
+            folder.add(first.options, "refraction", 0, 0.1, 0.001).onChange((v) => sync("refraction", v));
+            folder.add(first.options, "bevelDepth", 0, 0.2, 0.001).onChange((v) => sync("bevelDepth", v));
+            folder.add(first.options, "bevelWidth", 0, 0.5, 0.001).onChange((v) => sync("bevelWidth", v));
+            folder.add(first.options, "frost", 0, 10, 0.1).onChange((v) => sync("frost", v));
+            folder.add(first.options, "magnify", 1, 5, 0.1).onChange((v) => sync("magnify", v));
+            folder.add(first.options, "shadow").onChange((v) => sync("shadow", v));
+            folder.add(first.options, "specular").onChange((v) => sync("specular", v));
+            folder.add(first.options, "tilt").onChange((v) => sync("tilt", v));
+            folder.add(first.options, "tiltFactor", 0, 25, 0.1).onChange((v) => sync("tiltFactor", v));
+            folder.add(first.options, "reveal", ["none", "fade"]).onChange((v) => sync("reveal", v));
             folder.close();
           }
         });
       });
     </script>
-    <script>
-      /* DEMO ONLY - VIDEO PLAYER, NOT REQUIRED FOR LIBRARY USAGE */
-      document.addEventListener("DOMContentLoaded", () => {
-        const videoTrigger = document.querySelector(".video-hover-area");
-        const playIcon = document.querySelector(".play-icon");
-        const fullscreenPlayer = document.querySelector(".fullscreen-player");
-        const fullscreenVideo = fullscreenPlayer.querySelector("video");
-        const closeBtn = document.querySelector(".close-btn");
 
-        const customControls = document.querySelector(".custom-controls");
-        const playPauseBtn = document.querySelector(".play-pause-btn");
-        const progressBarContainer = document.querySelector(
-          ".progress-bar-container"
-        );
-        const progressBarFill = document.querySelector(".progress-bar-fill");
-
-        if (!videoTrigger) return;
-
-        videoTrigger.style.cursor = "pointer";
-
-        gsap.set(playIcon, {
-          scale: 0,
-          autoAlpha: 0,
-          xPercent: -50,
-          yPercent: -50,
-        });
-
-        gsap.set(fullscreenPlayer, {
-          xPercent: -100,
-          visibility: "hidden",
-        });
-
-        let inactivityTimer;
-
-        const hideControls = () => {
-          if (!fullscreenVideo.paused) {
-            fullscreenPlayer.classList.add("inactive");
-          }
-        };
-
-        const resetInactivityTimer = () => {
-          fullscreenPlayer.classList.remove("inactive");
-          clearTimeout(inactivityTimer);
-          inactivityTimer = setTimeout(hideControls, 3000);
-        };
-
-        fullscreenPlayer.addEventListener("mousemove", resetInactivityTimer);
-        fullscreenPlayer.addEventListener("touchstart", resetInactivityTimer);
-
-        const togglePlayPause = () => {
-          if (fullscreenVideo.paused) {
-            fullscreenVideo.play();
-            playPauseBtn.classList.add("playing");
-            playPauseBtn.setAttribute("aria-label", "Pause video");
-            resetInactivityTimer();
-          } else {
-            fullscreenVideo.pause();
-            playPauseBtn.classList.remove("playing");
-            playPauseBtn.setAttribute("aria-label", "Play video");
-            clearTimeout(inactivityTimer);
-          }
-        };
-
-        playPauseBtn.addEventListener("click", togglePlayPause);
-        fullscreenVideo.addEventListener("click", (e) => {
-          e.stopPropagation();
-          if (e.target === fullscreenVideo) {
-            togglePlayPause();
-          }
-        });
-
-        fullscreenVideo.addEventListener("timeupdate", () => {
-          const progress =
-            (fullscreenVideo.currentTime / fullscreenVideo.duration) * 100;
-          gsap.to(progressBarFill, {
-            width: `${progress}%`,
-            duration: 0.1,
-            ease: "linear",
-          });
-        });
-
-        progressBarContainer.addEventListener("click", (e) => {
-          const rect = progressBarContainer.getBoundingClientRect();
-          const clickX = e.clientX - rect.left;
-          const width = rect.width;
-          const newTime = (clickX / width) * fullscreenVideo.duration;
-          fullscreenVideo.currentTime = newTime;
-        });
-
-        fullscreenVideo.addEventListener("ended", () => {
-          playPauseBtn.classList.remove("playing");
-          playPauseBtn.setAttribute("aria-label", "Play video");
-          fullscreenPlayer.classList.remove("inactive");
-          clearTimeout(inactivityTimer);
-        });
-
-        videoTrigger.addEventListener("mouseenter", (e) => {
-          gsap.set(playIcon, { x: e.clientX, y: e.clientY });
-          gsap.to(playIcon, { autoAlpha: 1, scale: 1, duration: 0.3 });
-        });
-
-        videoTrigger.addEventListener("mouseleave", () => {
-          gsap.to(playIcon, { autoAlpha: 0, scale: 0, duration: 0.3 });
-        });
-
-        videoTrigger.addEventListener("mousemove", (e) => {
-          gsap.to(playIcon, {
-            x: e.clientX,
-            y: e.clientY,
-            duration: 0.4,
-            ease: "power3.out",
-          });
-        });
-
-        videoTrigger.addEventListener("click", () => {
-          gsap.to(fullscreenPlayer, {
-            xPercent: 0,
-            visibility: "visible",
-            duration: 0.8,
-            ease: "expo.inOut",
-            onComplete: () => {
-              fullscreenVideo.play();
-              playPauseBtn.classList.add("playing");
-              playPauseBtn.setAttribute("aria-label", "Pause video");
-              resetInactivityTimer();
-            },
-          });
-        });
-
-        const closePlayer = () => {
-          gsap.to(fullscreenVideo, {
-            volume: 0,
-            duration: 0.5,
-            ease: "linear",
-            onComplete: () => {
-              fullscreenVideo.pause();
-              gsap.to(fullscreenPlayer, {
-                xPercent: -100,
-                duration: 0.8,
-                ease: "expo.inOut",
-                onComplete: () => {
-                  gsap.set(fullscreenPlayer, { visibility: "hidden" });
-                  fullscreenVideo.currentTime = 0;
-                  fullscreenVideo.volume = 1; // Reset for next time
-                  playPauseBtn.classList.remove("playing");
-                  playPauseBtn.setAttribute("aria-label", "Play video");
-                  gsap.set(progressBarFill, { width: "0%" });
-                },
-              });
-            },
-          });
-        };
-
-        closeBtn.addEventListener("click", closePlayer);
-        closeBtn.addEventListener("keydown", (e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            closePlayer();
-          }
-        });
-      });
-    </script>
   </body>
 </html>

@@ -42,6 +42,24 @@
 
 Glassworks ships two builds. Most projects want the default.
 
+### npm
+
+```bash
+npm i @codedgar/glassworks
+```
+
+Glassworks is a browser library that attaches a global, so reference the build with a `<script>` tag once it's in `node_modules`:
+
+```html
+<script src="node_modules/@codedgar/glassworks/scripts/liquidGL.js" defer></script>
+```
+
+Or load it straight from a CDN — no install required:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@codedgar/glassworks" defer></script>
+```
+
 ### Default — `liquidGL.js`
 
 snapdom is the capture backend. html2canvas is lazy-loaded only when the page actually needs it.

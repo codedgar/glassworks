@@ -1,0 +1,36 @@
+{
+  "name": "@codedgar/glassworks",
+  "version": "1.0.0",
+  "description": "Liquid glass for the web — turns any positioned element into a refracted, glossy WebGL glass pane. Rebuilt on snapdom for ~4× faster captures.",
+  "main": "scripts/liquidGL.js",
+  "unpkg": "scripts/liquidGL.js",
+  "jsdelivr": "scripts/liquidGL.js",
+  "files": [
+    "scripts/liquidGL.js",
+    "scripts/liquidGL-legacy.js",
+    "scripts/html2canvas.min.js",
+    "README.md"
+  ],
+  "keywords": [
+    "glassmorphism",
+    "liquid-glass",
+    "webgl",
+    "refraction",
+    "glass",
+    "snapdom",
+    "ui"
+  ],
+  "homepage": "https://github.com/codedgar/glassworks#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codedgar/glassworks.git"
+  },
+  "bugs": {
+    "url": "https://github.com/codedgar/glassworks/issues"
+  },
+  "author": "codedgar",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>transforms</title>
+<link rel="stylesheet" href="fixture.css">
+<script src="harness.js"></script>
+<style>
+  .t { width: 200px; height: 120px; display: flex; align-items: center; justify-content: center; flex: none; }
+</style>
+</head>
+<body>
+<div class="pad row"><h1>Transforms fixture</h1><div class="fid" data-fid="flow" style="background:#000075"></div></div>
+<section class="stripes" style="position:relative;height:520px;padding:80px 60px;display:flex;gap:80px;align-items:flex-start">
+  <div class="t block" style="transform:rotate(30deg)"><div class="fid" data-fid="in-rotated" style="background:#e6194b"></div></div>
+  <div class="t block" style="transform:scale(1.5);transform-origin:0 0"><div class="fid" data-fid="in-scaled" style="background:#3cb44b"></div></div>
+  <div class="fid" data-fid="rotated-45" style="background:#4363d8;transform:rotate(45deg);margin-top:30px"></div>
+  <div class="t block" style="transform:translate(40px,120px) rotate(-15deg) scale(0.8)"><div class="fid" data-fid="in-composite" style="background:#f58231"></div></div>
+  <div class="lens" style="position:absolute;left:30px;top:40px;width:560px;height:300px"></div>
+</section>
+<div class="pad row"><div class="fid" data-fid="bottom" style="background:#911eb4"></div> <p>Glass captures must keep every pixel in place. The quick brown fox jumps over the lazy dog, 0123456789.</p></div>
+<script>glassFixture({ target: ".lens" });</script>
+</body>
+</html>

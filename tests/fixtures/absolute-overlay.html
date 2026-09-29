@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>absolute-overlay</title>
+<link rel="stylesheet" href="fixture.css">
+<script src="harness.js"></script>
+<style>
+  .ov { position: absolute; background: #fffbe6; border: 2px solid #9a6324; padding: 16px; width: 300px; }
+</style>
+</head>
+<body>
+<div class="pad row"><div class="fid" data-fid="flow-top" style="background:#e6194b"></div> <h1>Absolute overlay fixture</h1></div>
+<section class="stripes pad" style="height:1800px"><p class="text-col block">In-flow content. Glass captures must keep every pixel in place. The quick brown fox jumps over the lazy dog, 0123456789. Glass captures must keep every pixel in place. The quick brown fox jumps over the lazy dog, 0123456789.</p></section>
+<!-- Absolute, no positioned ancestor: containing block is the initial containing block. -->
+<div class="ov" style="left:700px;top:200px"><p>Viewport-relative overlay A</p><div class="row"><div class="fid" data-fid="abs-a" style="background:#3cb44b"></div></div></div>
+<div class="ov" style="left:120px;top:1300px"><p>Viewport-relative overlay B (below the fold)</p><div class="row"><div class="fid" data-fid="abs-b" style="background:#4363d8"></div></div></div>
+<!-- Control: absolute inside a positioned ancestor. -->
+<section style="position:relative;height:300px" class="block">
+  <div class="ov" style="left:500px;top:40px"><p>Overlay in positioned ancestor</p><div class="row"><div class="fid" data-fid="abs-rel" style="background:#f58231"></div></div></div>
+</section>
+<div class="lens" style="position:absolute;left:660px;top:160px;width:420px;height:220px"></div>
+<div class="pad row"><div class="fid" data-fid="flow-bottom" style="background:#911eb4"></div></div>
+<script>glassFixture({ target: ".lens" });</script>
+</body>
+</html>

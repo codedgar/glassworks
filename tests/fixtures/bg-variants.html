@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>bg-variants</title>
+<link rel="stylesheet" href="fixture.css">
+<link rel="stylesheet" href="assets/quad-data.css">
+<link rel="stylesheet" href="assets/quad-svg-data.css">
+<script src="harness.js"></script>
+<style>
+  .bg { width: 240px; height: 240px; background-size: cover; background-position: center; background-repeat: no-repeat; flex: none; }
+  .bg-file { background-image: url(assets/quad.png); }
+  .bg-svg-file { background-image: url(assets/quad.svg); }
+  .bg-grad { background-image: linear-gradient(to bottom, #fabed4 0 60px, #ffe119 60px 120px, #e6beff 120px 180px, #aaffc3 180px 240px); }
+  .grid { display: flex; flex-wrap: wrap; gap: 24px; padding: 40px; width: 900px; }
+  .label { font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="pad row"><h1>Background-image variants (claims C01, C02, C03, C17)</h1></div>
+<section class="grid" style="position:relative">
+  <div><div class="bg bg-file" data-fid="png-file" data-fid-points='[{"x":60,"y":60,"color":"#e6194b","name":"tl"},{"x":180,"y":60,"color":"#3cb44b","name":"tr"},{"x":60,"y":180,"color":"#4363d8","name":"bl"},{"x":180,"y":180,"color":"#f58231","name":"br"}]'></div><p class="label">PNG file</p></div>
+  <div><div class="bg bg-data" data-fid="png-data" data-fid-points='[{"x":60,"y":60,"color":"#911eb4","name":"tl"},{"x":180,"y":60,"color":"#42d4f4","name":"tr"},{"x":60,"y":180,"color":"#f032e6","name":"bl"},{"x":180,"y":180,"color":"#bfef45","name":"br"}]'></div><p class="label">PNG data URI</p></div>
+  <div><div class="bg bg-svg-file" data-fid="svg-file" data-fid-points='[{"x":60,"y":60,"color":"#469990","name":"tl"},{"x":180,"y":60,"color":"#9a6324","name":"tr"},{"x":60,"y":180,"color":"#800000","name":"bl"},{"x":180,"y":180,"color":"#808000","name":"br"}]'></div><p class="label">SVG file</p></div>
+  <div><div class="bg bg-svg-data" data-fid="svg-data" data-fid-points='[{"x":60,"y":60,"color":"#000075","name":"tl"},{"x":180,"y":60,"color":"#aaffc3","name":"tr"},{"x":60,"y":180,"color":"#e6beff","name":"bl"},{"x":180,"y":180,"color":"#fabed4","name":"br"}]'></div><p class="label">SVG data URI</p></div>
+  <div><div class="bg bg-grad" data-fid="gradient" data-fid-points='[{"x":120,"y":30,"color":"#fabed4","name":"b1"},{"x":120,"y":90,"color":"#ffe119","name":"b2"},{"x":120,"y":150,"color":"#e6beff","name":"b3"},{"x":120,"y":210,"color":"#aaffc3","name":"b4"}]'></div><p class="label">Gradient</p></div>
+  <div><img class="bg" src="assets/quad.png" width="240" height="240" alt="" data-fid="img-control" data-fid-points='[{"x":60,"y":60,"color":"#e6194b","name":"tl"},{"x":180,"y":60,"color":"#3cb44b","name":"tr"},{"x":60,"y":180,"color":"#4363d8","name":"bl"},{"x":180,"y":180,"color":"#f58231","name":"br"}]'><p class="label">&lt;img&gt; control</p></div>
+  <div class="lens" style="position:absolute;left:20px;top:20px;width:300px;height:180px"></div>
+</section>
+<script>glassFixture({ target: ".lens" });</script>
+</body>
+</html>

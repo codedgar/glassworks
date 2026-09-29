@@ -1,0 +1,190 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>claims-lab</title>
+<style>
+  *, *::before, *::after { animation: none !important; transition: none !important; box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #f4efe6; font: 16px/1.4 Arial, Helvetica, sans-serif; }
+</style>
+<script>
+/* Direct SnapDOM calls for element-level claims (tests/claims.md).
+ * ?snapdom=<version>&case=<name>[&h=<px>&scale=lib|1]
+ * Each case builds only its own DOM, then window.lab.run() returns
+ * { captures: [{ label, png, width, height, points: [{name,x,y,color}] , ... }], info }.
+ * Points are in *image* pixels of the returned capture. */
+(function () {
+  var q = new URLSearchParams(location.search);
+  var v = q.get("snapdom") || "2.9.0";
+  if (!/^\d+\.\d+\.\d+$/.test(v)) throw new Error("bad version");
+  document.write('<script src="/node_modules/snapdom-' + v + '/dist/snapdom.js"><\/script>');
+})();
+</script>
+</head>
+<body>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search);
+  var CASE = q.get("case");
+  var LIB_OPTS = { dpr: 1, outerTransforms: false, backgroundColor: "transparent", crossOrigin: "anonymous", embedFonts: true };
+  function opts(extra) { var o = {}; for (var k in LIB_OPTS) o[k] = LIB_OPTS[k]; for (var k2 in extra) o[k2] = extra[k2]; return o; }
+  function el(tag, css, parent) { var e = document.createElement(tag); if (css) e.style.cssText = css; (parent || document.body).appendChild(e); return e; }
+  function png(c) {
+    if (typeof c.toDataURL !== "function") { var t = document.createElement("canvas"); t.width = c.width; t.height = c.height; t.getContext("2d").drawImage(c, 0, 0); c = t; }
+    return c.toDataURL("image/png");
+  }
+  function solidDataPng(color, w, h) { var c = document.createElement("canvas"); c.width = w; c.height = h; var x = c.getContext("2d"); x.fillStyle = color; x.fillRect(0, 0, w, h); return c.toDataURL(); }
+  function maxTex() { var g = document.createElement("canvas").getContext("webgl2") || document.createElement("canvas").getContext("webgl"); return g ? g.getParameter(g.MAX_TEXTURE_SIZE) : 8192; }
+  async function cap(label, node, o, points) {
+    var t0 = performance.now(), c, err = null;
+    try { c = await snapdom.toCanvas(node, o); } catch (e) { err = String((e && e.message) || e); }
+    var ms = performance.now() - t0;
+    if (!c) return { label: label, error: err, ms: ms };
+    return { label: label, png: png(c), width: c.width, height: c.height, ms: ms, points: points ? points(c) : [] };
+  }
+
+  var CASES = {};
+
+  /* C07/C08: element ~11,000 px below the top, captured at scroll 0, then in view. */
+  ["div", "img", "svg", "canvas"].forEach(function (kind) {
+    CASES["offscreen-" + kind] = async function () {
+      el("div", "height:11000px;background:#dde");
+      var host = el("div", "width:200px;height:200px;margin:0 auto");
+      var COLOR = "#ff00ff", node;
+      if (kind === "div") node = el("div", "width:200px;height:200px;background:" + COLOR, host);
+      if (kind === "img") { node = el("img", "width:200px;height:200px;display:block", host); node.src = solidDataPng(COLOR, 8, 8); await node.decode(); }
+      if (kind === "svg") { host.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" style="display:block"><rect width="200" height="200" fill="' + COLOR + '"/></svg>'; node = host.firstChild; }
+      if (kind === "canvas") { node = el("canvas", "width:200px;height:200px;display:block", host); node.width = 200; node.height = 200; var cx = node.getContext("2d"); cx.fillStyle = COLOR; cx.fillRect(0, 0, 200, 200); }
+      el("div", "height:1000px;background:#dde");
+      window.scrollTo(0, 0);
+      await new Promise(function (r) { requestAnimationFrame(function () { requestAnimationFrame(r); }); });
+      var centre = function (c) { return [{ name: "centre", x: c.width / 2, y: c.height / 2, color: COLOR }]; };
+      var off = await cap("offscreen", node, opts({ scale: 1 }), centre);
+      off.scrollY = window.scrollY;
+      node.scrollIntoView({ block: "center" });
+      await new Promise(function (r) { requestAnimationFrame(function () { requestAnimationFrame(r); }); });
+      var inv = await cap("in-view", node, opts({ scale: 1 }), centre);
+      inv.scrollY = window.scrollY;
+      window.scrollTo(0, 0);
+      return { captures: [off, inv] };
+    };
+  });
+
+  /* C05/C06: tall element, markers every 5,000 px and at the bottom. */
+  CASES.tall = async function () {
+    var H = parseInt(q.get("h"), 10), W = 640;
+    var root = el("div", "position:relative;width:" + W + "px;height:" + H + "px;background:#dde;overflow:hidden");
+    var colors = ["#e6194b", "#3cb44b", "#4363d8", "#f58231", "#911eb4", "#42d4f4", "#f032e6", "#bfef45", "#469990", "#9a6324"];
+    var ys = [16]; for (var y = 5000; y < H - 100; y += 5000) ys.push(y); ys.push(H - 64);
+    var marks = ys.map(function (y, i) {
+      /* Flow layout is not needed here: absolute children of a positioned root. */
+      el("div", "position:absolute;left:296px;top:" + y + "px;width:48px;height:48px;background:" + colors[i % colors.length], root);
+      return { name: "y" + y, cssY: y + 24, color: colors[i % colors.length] };
+    });
+    var s = q.get("scale") === "lib" ? Math.min(1, maxTex() / H, maxTex() / W) : 1;
+    var c = await cap("tall-" + H + "-scale-" + q.get("scale"), root, opts({ scale: s }), function (cv) {
+      var k = cv.height / H; /* proportional placement (covers downscaling caps) */
+      return marks.map(function (m) { return { name: m.name, x: 320 * (cv.width / W), y: m.cssY * k, color: m.color, cssY: m.cssY }; });
+    });
+    c.requestedScale = s; c.cssHeight = H; c.maxTextureSize = maxTex();
+    return { captures: [c] };
+  };
+
+  /* C09: liquidGL#11 repro, verbatim apart from the script source. */
+  CASES.repro = async function () {
+    document.body.insertAdjacentHTML("beforeend",
+      '<div id="long" style="width:640px;background:#fff">' +
+      '<div style="height:200px;background:#e33"></div>' +
+      '<div style="height:7000px;background:#dde"></div>' +
+      '<div style="height:200px;background:#3a3"></div>' +
+      '<div style="height:2000px;background-image:linear-gradient(#ffe082 0 20px,#fff 20px 40px);background-size:40px 40px"></div>' +
+      '<div id="tile" style="height:1800px"></div>' +
+      '<img id="far" style="width:200px;height:200px;display:block;margin:0 auto">' +
+      '<div style="height:200px;background:#33e"></div></div>');
+    var c = Object.assign(document.createElement("canvas"), { width: 8, height: 8 });
+    var cc = c.getContext("2d"); cc.fillStyle = "#f0f"; cc.fillRect(0, 0, 8, 8);
+    var img = document.getElementById("far"); img.src = c.toDataURL(); await img.decode();
+    var t = Object.assign(document.createElement("canvas"), { width: 16, height: 16 });
+    var tc = t.getContext("2d"); tc.fillStyle = "#0aa"; tc.fillRect(0, 0, 16, 16);
+    document.getElementById("tile").style.backgroundImage = "url(" + t.toDataURL() + ")";
+    var elx = document.getElementById("long");
+    var r = await cap("repro", elx, { scale: 1, dpr: 1 }, function () {
+      return [
+        { name: "gradient@7410", x: 320, y: 7410, color: "#ffe082", maxDelta: 1 },
+        { name: "tile@10000", x: 320, y: 10000, color: "#00aaaa", maxDelta: 0 },
+        { name: "img@11300", x: 320, y: 11300, color: "#ff00ff", maxDelta: 0 },
+        { name: "bottom@11500", x: 320, y: 11500, color: "#3333ee", maxDelta: 0 },
+      ];
+    });
+    r.offsetHeight = elx.offsetHeight;
+    return { captures: [r] };
+  };
+
+  /* C12a: afterClone plugin hook hides a node in the clone only. */
+  CASES.hook = async function () {
+    var host = el("div", "width:300px;height:200px;background:#3cb44b;padding:76px 126px");
+    var mk = el("div", "width:48px;height:48px;background:#e6194b", host);
+    mk.setAttribute("data-hide-in-clone", "");
+    var mutations = 0;
+    var mo = new MutationObserver(function (l) { mutations += l.length; });
+    mo.observe(mk, { attributes: true });
+    var invoked = 0, found = 0;
+    var plugin = { name: "glass-hide-in-clone", afterClone: function (ctx) {
+      invoked++;
+      var root = ctx && ctx.clone;
+      if (!root || !root.querySelectorAll) return;
+      var list = root.querySelectorAll("[data-hide-in-clone]");
+      found += list.length;
+      for (var i = 0; i < list.length; i++) list[i].style.visibility = "hidden";
+    } };
+    var r = await cap("hook", host, opts({ scale: 1, plugins: [plugin] }), function (cv) {
+      return [{ name: "marker-position", x: 150, y: 100, color: "#3cb44b" }];
+    });
+    await new Promise(function (res) { setTimeout(res, 0); });
+    mo.disconnect();
+    r.hookInvoked = invoked; r.hookFoundNodes = found; r.liveMutations = mutations;
+    return { captures: [r] };
+  };
+
+  /* C14: filter option vs none, capturing document.body. */
+  CASES.filter = async function () {
+    var sec = el("section", "padding:40px;display:flex;gap:40px");
+    el("div", "width:300px;height:200px;background:#4363d8", sec);
+    var host = el("div", "width:300px;height:200px;background:#3cb44b;padding:76px 126px", sec);
+    var mk = el("div", "width:48px;height:48px;background:#e6194b", host);
+    mk.setAttribute("data-filter-out", "");
+    el("div", "height:400px;background:#dde");
+    var body = document.body;
+    var hr = host.getBoundingClientRect(), br = body.getBoundingClientRect();
+    /* Scale 1: CSS px == image px (no stretching to the canvas size). */
+    var pt = function (color) { return function () { return [{ name: "marker-position", x: hr.left - br.left + 150, y: hr.top - br.top + 100, color: color }]; }; };
+    var a = await cap("no-filter", body, opts({ scale: 1 }), pt("#e6194b"));
+    var b = await cap("filter", body, opts({ scale: 1, filter: function (n) { return !(n.hasAttribute && n.hasAttribute("data-filter-out")); } }), pt("#3cb44b"));
+    a.target = [br.width, br.height]; b.target = [br.width, br.height];
+    return { captures: [a, b] };
+  };
+
+  /* C16: transformed capture root with and without outerTransforms:false. */
+  CASES.transform = async function () {
+    el("div", "height:40px");
+    var node = el("div", "width:400px;height:200px;background:#3cb44b;transform:translateY(180%)");
+    el("div", "height:800px");
+    var centre = function (cv) { return [{ name: "centre", x: cv.width / 2, y: cv.height / 2, color: "#3cb44b" }]; };
+    var o = opts({ scale: 1 }); delete o.outerTransforms;
+    var d = await cap("default-outerTransforms", node, o, centre);
+    var f = await cap("outerTransforms-false", node, opts({ scale: 1 }), centre);
+    return { captures: [d, f] };
+  };
+
+  window.lab = {
+    run: async function () {
+      await document.fonts.ready;
+      var out = await CASES[CASE]();
+      out.info = { snapdom: typeof snapdom !== "undefined", toCanvas: typeof snapdom !== "undefined" && typeof snapdom.toCanvas === "function" };
+      return out;
+    },
+  };
+})();
+</script>
+</body>
+</html>

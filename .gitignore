@@ -1,4 +1,14 @@
 .DS_Store
 *.DS_Store
 */.DS_Store
-**/.DS_Store 
+**/.DS_Store
+node_modules/
+test-results/
+tests/.cache/
+
+# Vendored copies of real pages for the benchmark (14 MB).
+# Regenerate with: node tests/realpages/build.mjs
+tests/realpages/glassworks/
+tests/realpages/puppertino/
+tests/realpages/vendor/
+tests/realpages/rewrites.json

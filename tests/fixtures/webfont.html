@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>webfont</title>
+<link rel="stylesheet" href="fixture.css">
+<script src="harness.js"></script>
+<style>
+  @font-face { font-family: "GlassTestFont"; src: url(/node_modules/@fontsource/pacifico/files/pacifico-latin-400-normal.woff2) format("woff2"); font-display: block; }
+  .wf { font-family: "GlassTestFont", monospace; font-size: 48px; line-height: 1.3; color: #222; }
+</style>
+</head>
+<body>
+<div class="pad row"><div class="fid" data-fid="tl" style="background:#e6194b"></div> <h1 class="wf">Webfont fixture</h1></div>
+<section class="stripes" style="position:relative;padding:40px">
+  <p class="wf">Sphinx of black quartz, judge my vow.</p>
+  <p class="wf">Pack my box with five dozen liquor jugs.</p>
+  <div class="row" style="margin-top:16px"><div class="fid" data-fid="under-lens" style="background:#3cb44b"></div></div>
+  <div class="lens" style="position:absolute;left:20px;top:20px;width:620px;height:200px"></div>
+</section>
+<div class="pad row"><div class="fid" data-fid="bottom" style="background:#4363d8"></div> <p class="wf" style="font-size:24px">The five boxing wizards jump quickly.</p></div>
+<script>glassFixture({ target: ".lens", fontsLoad: '48px "GlassTestFont"' });</script>
+</body>
+</html>

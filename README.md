@@ -42,23 +42,63 @@
 
 Glassworks ships two builds. Most projects want the default.
 
-### npm
+### npm (bundler / ESM)
 
 ```bash
-npm i @codedgar/glassworks
+npm i @codedgar/glassworks @zumer/snapdom
 ```
 
-Glassworks is a browser library that attaches a global, so reference the build with a `<script>` tag once it's in `node_modules`:
+Glassworks needs a capture engine. Pass one in — no globals, no CDN, and it fails
+with a clear error if the engine is missing rather than rendering nothing:
+
+```js
+import glassworks, { createSnapdomEngine } from "@codedgar/glassworks";
+import { snapdom } from "@zumer/snapdom";
+
+glassworks({
+  target: ".glass",
+  engine: createSnapdomEngine(snapdom),
+});
+```
+
+Register it once instead, if you prefer, and every later call picks it up:
+
+```js
+glassworks.registerEngine("snapdom", createSnapdomEngine(snapdom));
+glassworks({ target: ".glass" });
+```
+
+`@zumer/snapdom` is an optional peer dependency: install the version you want, or
+supply your own adapter (any object with `name` and
+`capture(target, { scale, ignore })` returning a canvas).
+
+### Script tag / CDN
+
+The UMD build attaches `window.glassworks`, keeps `window.liquidGL` as an alias,
+and picks up `window.snapdom` automatically.
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@zumer/snapdom/dist/snapdom.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@codedgar/glassworks" defer></script>
+```
+
+From `node_modules`:
 
 ```html
 <script src="node_modules/@codedgar/glassworks/scripts/liquidGL.js" defer></script>
 ```
 
-Or load it straight from a CDN — no install required:
+### Build outputs
 
-```html
-<script src="https://cdn.jsdelivr.net/npm/@codedgar/glassworks" defer></script>
-```
+| File | Format | Use |
+|---|---|---|
+| `dist/glassworks.esm.js` | ESM | bundlers, `import` |
+| `dist/glassworks.cjs` | CJS | `require` |
+| `dist/glassworks.umd.js` | IIFE | `<script>`, sets `window.glassworks` + `window.liquidGL` |
+| `dist/glassworks.umd.min.js` | IIFE, minified | CDN default |
+| `scripts/liquidGL.js` | IIFE | unchanged path for existing users (same as the UMD build) |
+
+Types ship in `types/index.d.ts`. Build with `npm run build`.
 
 ### Default — `liquidGL.js`
 

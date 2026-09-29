@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>multi-lens-inflow</title>
+<link rel="stylesheet" href="fixture.css">
+<script src="harness.js"></script>
+<style> .inflow { position: relative; height: 160px; margin: 24px 40px; } </style>
+</head>
+<body>
+<div class="pad row"><h1>Multiple in-flow lenses</h1><div class="fid" data-fid="top" style="background:#000075"></div></div>
+<section class="stripes pad" style="height:600px"><p class="text-col block">Block 1. Glass captures must keep every pixel in place. The quick brown fox jumps over the lazy dog, 0123456789. Glass captures must keep every pixel in place. The quick brown fox jumps over the lazy dog, 0123456789.</p></section>
+<div class="lens inflow"></div>
+<div class="pad row"><div class="fid" data-fid="below-lens-1" style="background:#e6194b"></div> <p>marker below in-flow lens 1</p></div>
+<section class="stripes pad" style="height:600px"><p class="text-col block">Block 2. Glass captures must keep every pixel in place. The quick brown fox jumps over the lazy dog, 0123456789. Glass captures must keep every pixel in place. The quick brown fox jumps over the lazy dog, 0123456789.</p></section>
+<div class="lens inflow"></div>
+<div class="pad row"><div class="fid" data-fid="below-lens-2" style="background:#3cb44b"></div> <p>marker below in-flow lens 2</p></div>
+<section class="stripes pad" style="height:600px"><p class="text-col block">Block 3. Glass captures must keep every pixel in place. The quick brown fox jumps over the lazy dog, 0123456789. Glass captures must keep every pixel in place. The quick brown fox jumps over the lazy dog, 0123456789.</p></section>
+<div class="lens inflow"></div>
+<div class="pad row"><div class="fid" data-fid="below-lens-3" style="background:#4363d8"></div> <p>marker below in-flow lens 3</p></div>
+<section class="stripes pad" style="height:600px"><p class="text-col block">Block 4. Glass captures must keep every pixel in place. The quick brown fox jumps over the lazy dog, 0123456789. Glass captures must keep every pixel in place. The quick brown fox jumps over the lazy dog, 0123456789.</p></section>
+<div class="lens inflow"></div>
+<div class="pad row"><div class="fid" data-fid="below-lens-4" style="background:#f58231"></div> <p>marker below in-flow lens 4</p></div>
+<section class="stripes pad" style="height:600px"><p class="text-col block">Block 5. Glass captures must keep every pixel in place. The quick brown fox jumps over the lazy dog, 0123456789. Glass captures must keep every pixel in place. The quick brown fox jumps over the lazy dog, 0123456789.</p></section>
+<div class="lens inflow"></div>
+<div class="pad row"><div class="fid" data-fid="below-lens-5" style="background:#911eb4"></div> <p>marker below in-flow lens 5</p></div>
+<section class="block" style="height:300px"><p>Glass captures must keep every pixel in place. The quick brown fox jumps over the lazy dog, 0123456789.</p></section>
+<script>glassFixture({ target: ".lens" });</script>
+</body>
+</html>

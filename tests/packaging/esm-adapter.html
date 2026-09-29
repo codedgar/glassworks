@@ -1,0 +1,19 @@
+<!doctype html><meta charset="utf-8"><title>esm adapter</title>
+<style>body{margin:0;background:#cde}.box{width:400px;height:200px;background:#3cb44b;margin:40px}
+.lens{position:absolute;left:60px;top:60px;width:300px;height:120px;border-radius:16px}
+.filler{height:900px;background:repeating-linear-gradient(90deg,#cdd7e4 0 40px,#e8d9c5 40px 80px)}</style>
+<div class="box">content behind the lens</div>
+<div class="filler"></div>
+<div class="lens"></div>
+<script type="module">
+  /* Bundler-style usage: no globals anywhere. */
+  import glassworks, { createSnapdomEngine, version } from "/dist/glassworks.esm.js";
+  import { snapdom } from "/node_modules/snapdom-3.1.0/dist/snapdom.mjs";
+  window.__version = version;
+  window.__globalsSeen = { glassworks: typeof window.glassworks, liquidGL: typeof window.liquidGL, snapdom: typeof window.snapdom };
+  window.__inited = false;
+  const engine = createSnapdomEngine(snapdom);
+  window.__engineInfo = { name: engine.name, version: engine.version };
+  glassworks({ target: ".lens", engine, reveal: "none", specular: false, shadow: false,
+    on: { init: () => { window.__inited = true; } } });
+</script>

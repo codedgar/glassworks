@@ -1,0 +1,20 @@
+/* Shared fixture styles. Determinism: no animations/transitions, fixed
+   metrics, local fonts only. */
+*, *::before, *::after {
+  animation: none !important;
+  transition: none !important;
+  caret-color: transparent;
+  box-sizing: border-box;
+}
+html, body { margin: 0; padding: 0; background: #f4efe6; }
+body { font: 16px/1.4 Arial, Helvetica, sans-serif; color: #222; }
+h1, h2, p { margin: 0; }
+.pad { padding: 16px; }
+.row { display: flex; gap: 24px; align-items: flex-start; }
+.fid { width: 48px; height: 48px; flex: none; }
+.lens { border-radius: 24px; }
+.block { background: #d9e4dd; padding: 24px; }
+.stripes {
+  background: repeating-linear-gradient(90deg, #cdd7e4 0 40px, #e8d9c5 40px 80px);
+}
+.text-col { width: 560px; }

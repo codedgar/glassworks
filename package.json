@@ -1,11 +1,14 @@
 {
   "name": "@codedgar/glassworks",
-  "version": "1.0.0",
-  "description": "Liquid glass for the web — turns any positioned element into a refracted, glossy WebGL glass pane. Rebuilt on snapdom for ~4× faster captures.",
-  "main": "scripts/liquidGL.js",
-  "unpkg": "scripts/liquidGL.js",
-  "jsdelivr": "scripts/liquidGL.js",
+  "version": "2.0.0-dev.0",
+  "description": "Liquid glass for the web \u2014 turns any positioned element into a refracted, glossy WebGL glass pane. Bring your own capture engine (snapdom or html2canvas).",
+  "main": "./dist/glassworks.cjs",
+  "unpkg": "./dist/glassworks.umd.min.js",
+  "jsdelivr": "./dist/glassworks.umd.min.js",
   "files": [
+    "dist",
+    "src",
+    "types",
     "scripts/liquidGL.js",
     "scripts/liquidGL-legacy.js",
     "scripts/html2canvas.min.js",
@@ -32,5 +35,50 @@
   "license": "MIT",
   "publishConfig": {
     "access": "public"
+  },
+  "devDependencies": {
+    "@fontsource/pacifico": "^5.3.0",
+    "@playwright/test": "^1.63.0",
+    "esbuild": "^0.28.2",
+    "html2canvas": "^1.4.1",
+    "pixelmatch": "^7.2.0",
+    "pngjs": "^7.0.0",
+    "snapdom-2.24.15": "npm:@zumer/snapdom@^2.24.15",
+    "snapdom-2.9.0": "npm:@zumer/snapdom@^2.9.0",
+    "snapdom-3.1.0": "npm:@zumer/snapdom@^3.1.0"
+  },
+  "scripts": {
+    "test:glass": "playwright test",
+    "test:glass:phase2": "GLASS_PHASE=2 GLASS_WORKERS=3 playwright test; GLASS_KEEP=1 GLASS_PHASE=2 GLASS_PASS=timing GLASS_WORKERS=1 playwright test tests/fixtures.spec.mjs",
+    "build": "node build.mjs",
+    "prepublishOnly": "node build.mjs"
+  },
+  "type": "module",
+  "module": "./dist/glassworks.esm.js",
+  "browser": "./dist/glassworks.umd.js",
+  "types": "./types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "script": "./dist/glassworks.umd.min.js",
+      "import": "./dist/glassworks.esm.js",
+      "require": "./dist/glassworks.cjs",
+      "default": "./dist/glassworks.esm.js"
+    },
+    "./umd": "./dist/glassworks.umd.js",
+    "./package.json": "./package.json"
+  },
+  "sideEffects": [
+    "./dist/glassworks.umd.js",
+    "./dist/glassworks.umd.min.js",
+    "./scripts/liquidGL.js"
+  ],
+  "peerDependencies": {
+    "@zumer/snapdom": ">=2.9.0"
+  },
+  "peerDependenciesMeta": {
+    "@zumer/snapdom": {
+      "optional": true
+    }
   }
 }

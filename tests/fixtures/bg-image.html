@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>bg-image</title>
+<link rel="stylesheet" href="fixture.css">
+<script src="harness.js"></script>
+<link rel="stylesheet" href="assets/quad-data.css">
+<style>
+  .bg { width: 240px; height: 240px; background-size: cover; background-position: center; background-repeat: no-repeat; flex: none; }
+  .bg-file { background-image: url(assets/quad.png); }
+</style>
+</head>
+<body>
+<div class="pad row"><div class="fid" data-fid="tl" style="background:#000075"></div> <h1>CSS background-image fixture</h1></div>
+<section style="position:relative;padding:40px" class="row">
+  <div class="bg bg-file" data-fid="bg-file" data-fid-points='[{"x":60,"y":60,"color":"#e6194b","name":"tl"},{"x":180,"y":60,"color":"#3cb44b","name":"tr"},{"x":60,"y":180,"color":"#4363d8","name":"bl"},{"x":180,"y":180,"color":"#f58231","name":"br"}]'></div>
+  <div class="bg bg-data" data-fid="bg-data" data-fid-points='[{"x":60,"y":60,"color":"#911eb4","name":"tl"},{"x":180,"y":60,"color":"#42d4f4","name":"tr"},{"x":60,"y":180,"color":"#f032e6","name":"bl"},{"x":180,"y":180,"color":"#bfef45","name":"br"}]'></div>
+  <div class="text-col block"><p>Glass captures must keep every pixel in place. The quick brown fox jumps over the lazy dog, 0123456789. Glass captures must keep every pixel in place. The quick brown fox jumps over the lazy dog, 0123456789.</p></div>
+  <div class="lens" style="position:absolute;left:20px;top:20px;width:560px;height:200px"></div>
+</section>
+<div class="pad row"><div class="fid" data-fid="bottom" style="background:#800000"></div></div>
+<script>glassFixture({ target: ".lens" });</script>
+</body>
+</html>

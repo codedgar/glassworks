@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>pseudo-elements</title>
+<link rel="stylesheet" href="fixture.css">
+<script src="harness.js"></script>
+<style>
+  .ps { width: 48px; height: 48px; flex: none; }
+  .ps-before::before { content: ""; display: block; width: 48px; height: 48px; background: #e6194b; }
+  .ps-after::after { content: ""; display: block; width: 48px; height: 48px; background: #3cb44b; }
+  .ps-both { display: flex; flex-direction: column; height: 96px; }
+  .ps-both::before { content: ""; display: block; width: 48px; height: 48px; background: #4363d8; }
+  .ps-both::after { content: ""; display: block; width: 48px; height: 48px; background: #f58231; }
+  .ps-text::before { content: "PSEUDO BEFORE TEXT \2014 "; font-weight: bold; color: #911eb4; }
+  .ps-text::after { content: " \2014 PSEUDO AFTER TEXT"; font-weight: bold; color: #469990; }
+</style>
+</head>
+<body>
+<div class="pad row"><h1>Pseudo-element fixture</h1></div>
+<section class="stripes" style="position:relative;padding:40px">
+  <div class="row">
+    <div class="ps ps-before" data-fid="before" data-fid-color="#e6194b"></div>
+    <div class="ps ps-after" data-fid="after" data-fid-color="#3cb44b"></div>
+    <div class="ps ps-both" data-fid="both" data-fid-points='[{"x":24,"y":24,"color":"#4363d8","name":"before"},{"x":24,"y":72,"color":"#f58231","name":"after"}]'></div>
+  </div>
+  <p class="ps-text block text-col" style="margin-top:24px">Glass captures must keep every pixel in place. The quick brown fox jumps over the lazy dog, 0123456789.</p>
+  <div class="lens" style="position:absolute;left:20px;top:20px;width:360px;height:180px"></div>
+</section>
+<section class="pad row">
+  <div class="ps ps-before" data-fid="before-2" data-fid-color="#e6194b"></div>
+  <p class="ps-text">Pseudo text outside the lens.</p>
+</section>
+<script>glassFixture({ target: ".lens" });</script>
+</body>
+</html>

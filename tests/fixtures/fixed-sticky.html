@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>fixed-sticky</title>
+<link rel="stylesheet" href="fixture.css">
+<script src="harness.js"></script>
+<style>
+  .fixed-nav { position: fixed; top: 0; left: 0; right: 0; height: 64px; background: #20243a; color: #fff; z-index: 10; display: flex; align-items: center; padding: 0 24px; }
+  .sticky-nav { position: sticky; top: 0; height: 64px; background: #3a2030; color: #fff; z-index: 5; display: flex; align-items: center; gap: 24px; padding: 0 24px; }
+</style>
+</head>
+<body>
+<nav class="fixed-nav"><span>Fixed nav</span><div class="lens" style="position:relative;margin-left:40px;width:200px;height:44px"></div></nav>
+<div class="pad row"><div class="fid" data-fid="behind-fixed" style="background:#e6194b"></div> <h1>Fixed / sticky fixture</h1></div>
+<section class="stripes" style="position:relative;height:760px;padding:40px">
+  <div class="text-col block"><p>Glass captures must keep every pixel in place. The quick brown fox jumps over the lazy dog, 0123456789. Glass captures must keep every pixel in place. The quick brown fox jumps over the lazy dog, 0123456789.</p><div class="row" style="margin-top:12px"><div class="fid" data-fid="under-flow-lens" style="background:#3cb44b"></div></div></div>
+  <div class="lens" style="position:absolute;left:24px;top:24px;width:420px;height:220px"></div>
+</section>
+<nav class="sticky-nav"><span>Sticky nav</span><div class="fid" data-fid="in-sticky" style="background:#4363d8"></div><div class="lens" style="position:relative;width:200px;height:44px"></div></nav>
+<section class="block" style="height:1200px"><div class="row"><div class="fid" data-fid="below-sticky" style="background:#f58231"></div></div><p>Glass captures must keep every pixel in place. The quick brown fox jumps over the lazy dog, 0123456789.</p></section>
+<div class="pad row"><div class="fid" data-fid="bottom" style="background:#911eb4"></div></div>
+<script>glassFixture({ target: ".lens" });</script>
+</body>
+</html>

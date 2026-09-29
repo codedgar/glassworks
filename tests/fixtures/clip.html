@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>clip</title>
+<link rel="stylesheet" href="fixture.css">
+<script src="harness.js"></script>
+<style>
+  /* Each host is 200x120; its 48x48 child overflows the right edge:
+     x 180..228, so 20px are inside and 28px outside the host. */
+  .host { width: 200px; height: 120px; background: #d9e4dd; flex: none; }
+  .kid { width: 48px; height: 48px; margin: 36px 0 0 180px; }
+  .of { overflow: hidden; }
+  .cp { clip-path: inset(0); }
+  .mk { -webkit-mask-image: linear-gradient(#000, #000); mask-image: linear-gradient(#000, #000); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; }
+  .clips { display: flex; gap: 120px; padding: 60px 40px; position: relative; }
+</style>
+</head>
+<body>
+<div class="pad row"><h1>Clipping (claim C18)</h1></div>
+<section class="clips">
+  <div class="host of" data-fid="overflow" data-fid-points='[{"x":190,"y":60,"color":"#e6194b","name":"inside"},{"x":214,"y":60,"color":"#f4efe6","name":"outside"}]'><div class="kid" style="background:#e6194b"></div></div>
+  <div class="host cp" data-fid="clip-path" data-fid-points='[{"x":190,"y":60,"color":"#3cb44b","name":"inside"},{"x":214,"y":60,"color":"#f4efe6","name":"outside"}]'><div class="kid" style="background:#3cb44b"></div></div>
+  <div class="host mk" data-fid="mask" data-fid-points='[{"x":190,"y":60,"color":"#4363d8","name":"inside"},{"x":214,"y":60,"color":"#f4efe6","name":"outside"}]'><div class="kid" style="background:#4363d8"></div></div>
+  <div class="lens" style="position:absolute;left:20px;top:20px;width:300px;height:180px"></div>
+</section>
+<section class="block" style="height:200px"><p>Clip fixture filler.</p></section>
+<script>glassFixture({ target: ".lens" });</script>
+</body>
+</html>

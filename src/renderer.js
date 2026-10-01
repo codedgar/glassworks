@@ -206,6 +206,32 @@ export class liquidGLRenderer {
         gl_Position = vec4(a_position, 0.0, 1.0);
       }`;
 
+    /* Lens model (v2.1). Measured against native macOS 26 glass
+       (NSGlassEffectView) over test ramps:
+       - the middle of the pane is not bent at all;
+       - a rim band bends content along the rounded box's SDF normal,
+         perpendicular to the nearest edge, never radially from the
+         centre, so straight lines stay straight in the middle;
+       - the rim samples content from INSIDE the shape (a convex bezel
+         refracts rays toward the centre), up to ~0.8 x the short side
+         at the very edge (36pt on a 44pt pill, ~50pt at most), which
+         folds a mirrored sliver of the interior into the rim;
+       - the shift decays steeply: half of it is gone ~3-5pt in.
+       Uniform mapping (backward-compatible names):
+         u_bevelWidth  rim band as a fraction of the shorter side. The
+                       bend reaches zero at 2 x band, smoothly.
+         u_refraction  broad term, falls off as (1 - d/2band)^4
+         u_bevelDepth  sharp term at the edge, (1 - d/2band)^8
+         Both are magnitudes in texture UV of the snapshot's LONGER side
+         (the unit liquidGL always had along that axis), now applied
+         isotropically in pixels, so x and y bend alike on any page.
+         Positive values pull content from inside the shape (Apple).
+       u_frost: Gaussian frost, sigma in CSS px, applied BEFORE the lens
+         (was: a 16-tap random disc of radius 4 x frost texels, which
+         read as grain). u_texScale = texture px per CSS px.
+       u_specular: 0 off; > 0 two fixed edge highlights at +45 and -135
+         degrees (rim-only, screen-blended), strength = value; < 0 the
+         legacy drifting highlights. */
     const fsSource = `
       precision mediump float;
       varying vec2 v_uv;
@@ -219,37 +245,60 @@ export class liquidGLRenderer {
       uniform float u_frost;
       uniform float u_radius;
       uniform float u_time;
-      uniform bool  u_specular;
+      uniform float u_specular;
       uniform float u_revealProgress;
       uniform int   u_revealType;
       uniform float u_tiltX;
       uniform float u_tiltY;
       uniform float u_magnify;
+      uniform float u_texScale;
 
-      float udRoundBox( vec2 p, vec2 b, float r ) {
-        return length(max(abs(p)-b+r,0.0))-r;
+      float sdRoundBox(vec2 p, vec2 b, float r) {
+        vec2 q = abs(p) - b + r;
+        return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
       }
 
-      float random(vec2 st) {
-        return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+      /* Outward unit normal of a rounded box. Straight sides give the
+         axis, corners the arc's radial direction. */
+      vec2 rbNormal(vec2 p, vec2 b, float r) {
+        vec2 q = abs(p) - b + r;
+        vec2 s = vec2(p.x < 0.0 ? -1.0 : 1.0, p.y < 0.0 ? -1.0 : 1.0);
+        vec2 n;
+        if (q.x > 0.0 && q.y > 0.0) n = normalize(q);
+        else if (q.x > q.y) n = vec2(1.0, 0.0);
+        else n = vec2(0.0, 1.0);
+        return n * s;
       }
 
-      float edgeFactor(vec2 uv, float radius_px){
-        vec2 p_px = (uv - 0.5) * u_resolution;
-        vec2 b_px = 0.5 * u_resolution;
-        float d = -udRoundBox(p_px, b_px, radius_px);
-        float bevel_px = u_bevelWidth * min(u_resolution.x, u_resolution.y);
-        return 1.0 - smoothstep(0.0, bevel_px, d);
-      }
+
       void main(){
-        vec2 p = v_uv - 0.5;
-        p.x *= u_resolution.x / u_resolution.y;
+        /* Pixel space of this lens (canvas px, y up). */
+        vec2 b_px = 0.5 * u_resolution;
+        vec2 p_px = (v_uv - 0.5) * u_resolution;
+        float shortSide = min(u_resolution.x, u_resolution.y);
+        float r = min(u_radius, min(b_px.x, b_px.y));
+        float sd = sdRoundBox(p_px, b_px, r);
+        float d = max(-sd, 0.0);                      /* px in from the edge */
 
-        float edge = edgeFactor(v_uv, u_radius);
-        float min_dimension = min(u_resolution.x, u_resolution.y);
-        float offsetAmt = (edge * u_refraction + pow(edge, 10.0) * u_bevelDepth);
-        float centreBlend = smoothstep(0.15, 0.45, length(p));
-        vec2 offset = normalize(p) * offsetAmt * centreBlend;
+        float band = max(u_bevelWidth * shortSide, 1.0);
+        float t = clamp(1.0 - d / (2.0 * band), 0.0, 1.0);
+        float t2 = t * t;
+        float t4 = t2 * t2;
+        float t8 = t4 * t4;
+
+        /* Normal from a rounder box (radius >= 2 x band), so the
+           direction is smooth everywhere the rim bends. */
+        float rn = min(max(r, 2.0 * band), min(b_px.x, b_px.y));
+        vec2 n = rbNormal(p_px, b_px, rn);
+
+        /* ax = texture height / width. UV per longer-side unit, per axis.
+           Kept as ratios so mediump never sees page-sized numbers. */
+        float ax = (u_resolution.y * u_bounds.z) / max(u_resolution.x * u_bounds.w, 1e-6);
+        vec2 k = vec2(max(1.0, ax), max(1.0, 1.0 / ax));
+
+        float amt = u_refraction * t4 + u_bevelDepth * t8;  /* UV of longer side */
+        /* Inward: against the outward normal. Texture y runs down. */
+        vec2 offset = vec2(-n.x, n.y) * amt * k;
 
         float tiltRefractionScale = 0.05;
         vec2 tiltOffset = vec2(tan(radians(u_tiltY)), -tan(radians(u_tiltX))) * tiltRefractionScale;
@@ -269,20 +318,23 @@ export class liquidGLRenderer {
         vec4 refrCol;
 
         if (u_frost > 0.0) {
-            float radius = u_frost * 4.0;
+            /* Frost before the lens, as Apple does (backdrop blur, then
+               the glass filter): a Gaussian of sigma = u_frost CSS px,
+               sampled on a fixed 7x7 grid at 0.75 sigma spacing (+-2.25 sigma). Fixed taps,
+               so no grain crawls when the glass moves. */
+            float sig = u_frost * u_texScale;               /* texels */
+            vec2 stepUV = texel * sig * 0.75;
             vec4 sum = vec4(0.0);
-            const int SAMPLES = 16;
-
-            for (int i = 0; i < SAMPLES; i++) {
-                float angle = random(v_uv + float(i)) * 6.283185;
-                float dist = sqrt(random(v_uv - float(i))) * radius;
-                vec2 offset = vec2(cos(angle), sin(angle)) * texel * dist;
-                sum += texture2D(u_tex, sampleUV + offset);
+            float wsum = 0.0;
+            for (int i = -3; i <= 3; i++) {
+              for (int j = -3; j <= 3; j++) {
+                float w = exp(-0.28125 * float(i * i + j * j));
+                sum += texture2D(u_tex, sampleUV + vec2(float(i), float(j)) * stepUV) * w;
+                wsum += w;
+              }
             }
-            refrCol = sum / float(SAMPLES);
+            refrCol = sum / wsum;
         } else {
-            /* No frost: sample once. Averaging the four neighbours softened
-               every lens against its source. */
             refrCol = texture2D(u_tex, sampleUV);
         }
 
@@ -290,24 +342,28 @@ export class liquidGLRenderer {
             refrCol = baseCol;
         }
 
-        float diff = clamp(length(refrCol.rgb - baseCol.rgb) * 4.0, 0.0, 1.0);
+        vec4 final = refrCol;
+        float inShape = 1.0 - step(0.0, sd);
 
-        float antiHalo = (1.0 - centreBlend) * diff;
-
-        vec4 final    = refrCol;
-
-        vec2 p_px = (v_uv - 0.5) * u_resolution;
-        vec2 b_px = 0.5 * u_resolution;
-        float dmask = udRoundBox(p_px, b_px, u_radius);
-        float inShape = 1.0 - step(0.0, dmask);
-
-        if (u_specular) {
+        if (u_specular > 0.0) {
+          /* Two fixed edge lights, +45 deg (top right) and -135 deg
+             (bottom left), on a ~1.5% of the short side rim (min 1.5px).
+             Screen-blended so they lift the content rather than paint
+             a stripe of white. */
+          float w = max(1.5, 0.03 * shortSide);
+          float rim = exp(-d / w);
+          vec2 L = vec2(0.70710678, 0.70710678);
+          float a1 = max(dot(n, L), 0.0);
+          float a2 = max(dot(n, -L), 0.0);
+          float h = u_specular * rim * (a1 * a1 * a1 + 0.7 * a2 * a2 * a2) * 0.55;
+          final.rgb = 1.0 - (1.0 - final.rgb) * (1.0 - clamp(h, 0.0, 1.0));
+        } else if (u_specular < 0.0) {
           vec2 lp1 = vec2(sin(u_time*0.2), cos(u_time*0.3))*0.6 + 0.5;
           vec2 lp2 = vec2(sin(u_time*-0.4+1.5), cos(u_time*0.25-0.5))*0.6 + 0.5;
           float h = 0.0;
           h += smoothstep(0.4,0.0,distance(v_uv, lp1))*0.1;
           h += smoothstep(0.5,0.0,distance(v_uv, lp2))*0.08;
-          final.rgb += h;
+          final.rgb += h * -u_specular;
         }
 
         if (u_revealType == 1) {
@@ -417,6 +473,7 @@ export class liquidGLRenderer {
       tiltX: gl.getUniformLocation(this.program, "u_tiltX"),
       tiltY: gl.getUniformLocation(this.program, "u_tiltY"),
       magnify: gl.getUniformLocation(this.program, "u_magnify"),
+      texScale: gl.getUniformLocation(this.program, "u_texScale"),
     };
   }
 
@@ -836,8 +893,13 @@ export class liquidGLRenderer {
     gl.uniform1f(this.u.bevelDepth, lens.options.bevelDepth);
     gl.uniform1f(this.u.bevelWidth, lens.options.bevelWidth);
     gl.uniform1f(this.u.frost, lens.options.frost);
+    gl.uniform1f(this.u.texScale, this.scaleFactor || 1);
     gl.uniform1f(this.u.radius, lens.radiusGl);
-    gl.uniform1i(this.u.specular, lens.options.specular ? 1 : 0);
+    const spec = lens.options.specular;
+    gl.uniform1f(
+      this.u.specular,
+      spec === true ? 1 : spec === "drift" ? -1 : Number(spec) || 0
+    );
     gl.uniform1f(this.u.revealProgress, lens._revealProgress || 1.0);
     gl.uniform1i(this.u.revealType, lens.revealTypeIndex || 0);
 

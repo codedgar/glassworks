@@ -1,7 +1,7 @@
 {
   "name": "@codedgar/glassworks",
-  "version": "2.0.0-dev.0",
-  "description": "Liquid glass for the web \u2014 turns any positioned element into a refracted, glossy WebGL glass pane. Bring your own capture engine (snapdom or html2canvas).",
+  "version": "2.0.0-rc.1",
+  "description": "Liquid glass for the web — turns any positioned element into a refracted, glossy WebGL glass pane. Bring your own capture engine (snapdom or html2canvas).",
   "main": "./dist/glassworks.cjs",
   "unpkg": "./dist/glassworks.umd.min.js",
   "jsdelivr": "./dist/glassworks.umd.min.js",

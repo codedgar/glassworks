@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>lens-model</title>
+<link rel="stylesheet" href="fixture.css">
+<script src="harness.js"></script>
+<style>
+  /* Isotropic content: a checkerboard has the same detail along x and y, so
+     a horizontal and a vertical displacement are equally visible. The lens
+     is square for the same reason (see CRITERIA.md, layer M). */
+  .board {
+    position: relative;
+    height: 620px;
+    background-image: repeating-conic-gradient(#2f3640 0% 25%, #f1f2f6 0% 50%);
+    background-size: 24px 24px;
+  }
+  .lens { position: absolute; left: 190px; top: 190px; width: 240px; height: 240px; border-radius: 28px; }
+</style>
+</head>
+<body>
+<div class="pad row"><h1>Lens model fixture</h1></div>
+<section class="board"><div class="lens"></div></section>
+<section class="block" style="height:120px"><p>Filler below the board.</p></section>
+<script>glassFixture({ target: ".lens" });</script>
+</body>
+</html>

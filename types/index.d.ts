@@ -35,7 +35,7 @@ export interface GlassworksOptions {
   bevelWidth?: number;
   frost?: number;
   shadow?: boolean;
-  specular?: boolean;
+  specular?: boolean | number | "drift";
   /** `"fade"` animates the lens in; anything else reveals immediately. */
   reveal?: "fade" | "none" | string;
   tilt?: boolean;

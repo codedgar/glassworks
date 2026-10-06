@@ -1,5 +1,5 @@
 /*!
- * Glassworks v2.0.0-rc.1 — liquid glass for the web
+ * Glassworks v2.0.0 — liquid glass for the web
  * https://github.com/codedgar/glassworks#readme
  * Licence: MIT. Forked from liquidGL by NaughtyDuk©.
  */
@@ -2516,7 +2516,7 @@ Without an engine there is nothing to refract, so the lens would stay invisible.
   };
 
   // src/index.js
-  var version = true ? "2.0.0-rc.1" : "0.0.0-dev";
+  var version = true ? "2.0.0" : "0.0.0-dev";
   glassworks.registerEngine = registerEngine;
   glassworks.getEngine = getRegisteredEngine;
   glassworks.createSnapdomEngine = createSnapdomEngine;

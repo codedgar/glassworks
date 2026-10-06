@@ -102,7 +102,10 @@ test("ground-truth tiling control | long-page", async ({ context, browserName },
   await hideExcluded(page);
   const tiled = await groundTruth(page, geo.target.rectDoc);
   let single = null, singleError = null;
-  try {
+  // Headless Chromium cannot take this screenshot, and the failed attempt
+  // leaves WebGL unavailable for the tests that follow. Skip it there.
+  if (browserName === "chromium") singleError = "skipped: full-page screenshot unsupported at this height";
+  else try {
     const { decodePng, crop } = await import("./lib/measure.mjs");
     const full = decodePng(await page.screenshot({ fullPage: true, animations: "disabled", caret: "hide" }));
     const [x, y, w, h] = geo.target.rectDoc.map(Math.round);
